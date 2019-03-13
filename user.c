@@ -12,7 +12,10 @@
 #include <errno.h>
 #include <signal.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 #include "sharedTime.h"
+#define PERM (S_IRUSR | S_IWUSR)
 
 static SharedTime *sharedSum;
 
@@ -28,7 +31,7 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	shmID = shmget(key, sizeof(SharedTime), PERM | IPC_CREAT | IPC_EXCL);
+	shmID = shmget(key, sizeof(SharedTime), 0666 | IPC_CREAT);
 
 	
         if((shmID == -1) && (errno != EEXIST))
@@ -41,15 +44,15 @@ int main(int argc, char *argv[])
 
                 if(sharedSum == (void *)-1)
                 {
-                        return EXIT_FAILURE;
+                        return -1;
                 }
 
         }
-
+	
 	printf("\nchildSec:%d\nchildnano:%d\n", sharedSum -> seconds, sharedSum -> nanoSecs);
-
+	//printf("\nHello\n");
 	// Detach from shared memory
-	shmdt(shareSum);
+	shmdt(sharedSum);
 
 	return EXIT_SUCCESS;
 }

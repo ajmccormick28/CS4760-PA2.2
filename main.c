@@ -13,11 +13,12 @@
 #include <sys/wait.h>
 #include <sys/ipc.h>
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <signal.h>
 #include "optArg.h"
 #include "sharedTime.h"
 #include "detachAndRemove.h"
-#define PERM (S_IRUSR | S_IWUSR)
-
+#define PERM (S_IRUSR | S_IWUSR) 
 
 static SharedTime *sharedSum;
 static const char *optString = "ho:i:n:s:";
@@ -30,6 +31,11 @@ int main(int argc, char * argv[])
 	int opt = 0;
 	int shmID = 0;
 	int parentCounter = 0;
+	int status;
+	
+	double timeInc = 0;
+
+	char fileInput[100];
 
 	pid_t childpid;
 
@@ -99,7 +105,7 @@ int main(int argc, char * argv[])
  *
  ************************************************************/ 
 
-	shmID = shmget(key, sizeof(SharedTime), PERM | IPC_CREAT | IPC_EXCL);
+	shmID = shmget(key, sizeof(SharedTime), 0666 | IPC_CREAT);
 	
 	if((shmID == -1) && (errno != EEXIST))
 	{
@@ -123,8 +129,8 @@ int main(int argc, char * argv[])
 			return EXIT_FAILURE;
 		}
 		
-		sharedSum -> seconds = 3;
-		sharedSum -> nanoSecs = 8;
+		sharedSum -> seconds = 0;
+		sharedSum -> nanoSecs = 0;
 	}
 
 	printf("\n%d\n%d\n", sharedSum -> seconds, sharedSum -> nanoSecs);
@@ -147,12 +153,44 @@ int main(int argc, char * argv[])
 		return EXIT_FAILURE;
 	}
 */
-
-for(parentCounter = 0; parentCounter < 2; parentCounter++)
-{
-	if((childpid = fork()) == 0)
+	 // Pulling first line from input file and checking if not data exists
+	if(fgets(fileInput, 100, readptr) == NULL)
 	{
-		 	
+	        perror("logParse: Error: Line 1 in the input file is empty");
+		return EXIT_FAILURE;
+	}
+
+	timeInc = (int) strtol(fileInput, NULL, 10); // Converting char* into integer
+
+	
+	for(parentCounter = 0; parentCounter < args.numChild; parentCounter++)
+	{
+		if((timeInc + sharedSum -> nanoSecs) == 1000000000)
+		{
+			sharedSum -> seconds += 1;
+			sharedSum -> nanoSecs = 0;
+		}
+		else
+		{
+			sharedSum -> nanoSecs += timeInc;
+		}
+
+		printf("\nSecs%d Nano%d\n", sharedSum -> seconds, sharedSum -> nanoSecs);
+		if((childpid = fork()) == 0)
+		{	
+			printf("%d is running\n", getpid());
+			execl("./user", "hello", NULL);
+			//printf("\nI'm here\n");
+			perror("exec Failed:");
+			return EXIT_FAILURE;
+		}
+
+		else
+		{
+			childpid = wait(&status);
+		}
+		//printf("\n%d\n%d\n", sharedSum -> seconds, sharedSum -> nanoSecs);
+	}	
 
 
 
