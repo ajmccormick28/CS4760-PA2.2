@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 
         }
 	
-	printf("\nchildSec:%d\nchildnano:%d\n", sharedSum -> seconds, sharedSum -> nanoSecs);
+	//printf("\nchildSec:%d\nchildnano:%d\n", sharedSum -> seconds, sharedSum -> nanoSecs);
 	//printf("\nHello\n");
 	// Detach from shared memory
 	shmdt(sharedSum);

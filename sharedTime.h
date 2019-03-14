@@ -8,7 +8,7 @@
 
 typedef struct
 {
-	double seconds;
+	int seconds;
 	double nanoSecs;
 }
 SharedTime;

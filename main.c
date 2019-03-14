@@ -33,9 +33,10 @@ int main(int argc, char * argv[])
 	int parentCounter = 0;
 	int status;
 	int actChild = 0;
+	int getNewLaunch = 0;
 	
 	double timeInc = 0.0;
-	double secLaunch = 0.0;
+	int secLaunch = 0.0;
 	double nanoLaunch = 0.0;
 
 	char fileInput[100];
@@ -152,7 +153,7 @@ int main(int argc, char * argv[])
 		return EXIT_FAILURE;
 	}
 
-	timeInc = (double) strtol(fileInput, NULL, 10); // Converting char* into integer
+	timeInc = (double) strtod(fileInput, NULL); // Converting char* into integer
 
 	if(fgets(fileInput, 100, readptr) == NULL)
 	{
@@ -160,46 +161,92 @@ int main(int argc, char * argv[])
 		return EXIT_FAILURE;
 	}
 
-	printf("\nfile:%s\n", fileInput);
+	//printf("\nSum:%f\n",  sharedSum -> nanoSecs);
 
 	
-	secLaunch = (double) strtod(fileInput, &end);
+	secLaunch = (int) strtol(fileInput, &end, 10);
 
 	nanoLaunch = (double) strtod(end, NULL);
 	
-	printf("\nsec:%f nano:%f\n", secLaunch, nanoLaunch);
+	//printf("\nsec:%f nano:%f\n", secLaunch, nanoLaunch);
+	
 	while(args.numChild != 0)
 	{
-		if((timeInc + sharedSum -> nanoSecs) == 1000000000)
+		if((timeInc + sharedSum -> nanoSecs) >= 1000000000.0)
 		{
 			sharedSum -> seconds += 1;
-			sharedSum -> nanoSecs = 0;
+			sharedSum -> nanoSecs = 0.0;
 		}
 		else
 		{
 			sharedSum -> nanoSecs += timeInc;
 		}
 		
+		//printf("\nSUMsec:%d SUMnano: %f\n", sharedSum -> seconds, sharedSum -> nanoSecs);
 		
-		//if(actChild < args.childAtTime)
-		
+		if(actChild < args.childAtTime)
+		{
+			if(secLaunch == (sharedSum -> seconds))
+			{
+				if(nanoLaunch <=  (sharedSum -> nanoSecs))
+				{
+					if((childpid = fork()) == 0)
+					{		
+						//printf("%d is running\n", getpid());
+						execl("./user", "hello", NULL);
+						//printf("\nI'm here\n");
+						perror("exec Failed:");
+						return EXIT_FAILURE;
+					}	
+					
+					getNewLaunch = 1;
+					args.numChild -= 1;
+				}
+			}
 			
-		//printf("\nSecs%d Nano%d\n", sharedSum -> seconds, sharedSum -> nanoSecs);
-		if((childpid = fork()) == 0)
-		{	
-			printf("%d is running\n", getpid());
-			execl("./user", "hello", NULL);
-			//printf("\nI'm here\n");
-			perror("exec Failed:");
-			return EXIT_FAILURE;
-		}
+			else if(secLaunch < sharedSum -> seconds)
+			{
+				if((childpid = fork()) == 0)
+				{
+					execl("./user", "hello", NULL);
+					perror("exec Failed:");
+					return EXIT_FAILURE;
+				}
+				
+				getNewLaunch = 1;
+				args.numChild -= 1; 
+			}
 
-		else
+			if(getNewLaunch == 1)
+			{
+                                printf("\nsec:%d nano:%f", secLaunch, nanoLaunch);
+                                printf("\nSumsec:%d Sumnano:%f\n", sharedSum -> seconds, sharedSum -> nanoSecs);
+
+
+				if(fgets(fileInput, 100, readptr) == NULL)
+        			{		
+                			perror("oss: Error: Line 2 in the input file is empty");
+                			return EXIT_FAILURE;
+        			}
+
+        			//printf("\nfile:%s\n", fileInput);
+
+        			secLaunch = (int) strtol(fileInput, &end, 10);
+				nanoLaunch = (double) strtod(end, NULL);
+				
+				//printf("\nsec:%d nano:%f", secLaunch, nanoLaunch);
+				//printf("\nSumsec:%d Sumnano:%f\n", sharedSum -> seconds, sharedSum -> nanoSecs);
+
+				getNewLaunch = 0;
+			}
+		}
+		/*else
 		{
 			childpid = wait(&status);
 		}
+		*/
 		//printf("\n%d\n%d\n", sharedSum -> seconds, sharedSum -> nanoSecs);
-		args.numChild -= 1;
+		//args.numChild -= 1;
 	}	
 
 
