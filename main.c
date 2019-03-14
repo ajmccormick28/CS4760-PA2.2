@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <sys/time.h>
 #include "optArg.h"
 #include "sharedTime.h"
 #include "detachAndRemove.h"
@@ -22,9 +23,71 @@
 
 static SharedTime *sharedSum;
 static const char *optString = "ho:i:n:s:";
+static volatile sig_atomic_t doneflag = 0;
+
+int overTime = 0;
+
+// ARGSUSED
+
+static void setdoneflag(int signo)
+{
+	doneflag = 1;
+}
+
+static void myhandler(int s) 
+{
+	char aster = '*';
+	struct sigaction act;
+	int errsave;
+	errsave = errno;
+	//write(STDERR_FILENO, &aster, 1);
+	overTime = 1;
+	errno = errsave;
+}
+
+static int setupinterrupt(void)
+{
+	struct sigaction act;
+	act.sa_handler = myhandler;
+	act.sa_flags = 0;
+	return (sigemptyset(&act.sa_mask) || sigaction(SIGPROF, &act, NULL));
+}
+
+static int setupitimer(void)
+{
+	struct itimerval value;
+	value.it_interval.tv_sec = 2;
+	value.it_interval.tv_usec = 0;
+	value.it_value = value.it_interval;
+	return (setitimer(ITIMER_PROF, &value, NULL));
+}
+
 
 int main(int argc, char * argv[])
 {
+	if(setupinterrupt() == -1)
+	{
+		perror("Failed to set up handler for SIGPROF");
+		return EXIT_FAILURE;
+	}
+
+	if(setupitimer() == -1)
+	{
+		perror("Failed to set up the ITIMER_PROF interval timer");
+		return EXIT_FAILURE;
+	}
+
+	/*if((sigemptyset(&intmask) == -1) || (sigaddset(&intmask, SIGINT) == -1))
+	{	
+		perror("Failed to initialize the signal mask");
+		return EXIT_FAILURE;
+	}
+	
+	if(sigprocmask(SIG_BLOCK, &intmask, NULL) == -1)
+	{
+		perror("Failed to change signal mask");
+	}
+	*/
 	FILE *readptr;
 	FILE *writeptr;
 
@@ -37,16 +100,20 @@ int main(int argc, char * argv[])
 	int secLaunch = 0;
 	int terminate = 0;
 	int numChild = 0;
+	int i = 0;
+	int childLaunch = 0;
 		
 	double timeInc = 0.0;
 	double nanoLaunch = 0.0;
+	
 	char *duration;
-
 	char fileInput[100];
 	char *end;
 
 	pid_t childpid;
 	pid_t testpid;
+
+	struct sigaction act;
 
 	OptArg args = {"input.txt", "output.txt", 4, 2};
 
@@ -83,6 +150,17 @@ int main(int argc, char * argv[])
 		
 		opt = getopt(argc, argv, optString);
 	}
+
+	act.sa_handler = setdoneflag;
+	act.sa_flags = 0;
+	if((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1))
+	{
+		perror("Failed to set SIGINT handler");
+		return EXIT_FAILURE;
+	}
+	
+	int pids[args.numChild];
+	pids[0] = -1;
 
 	// Opening input file and error checking
 	if((readptr = fopen(args.inputFileName, "r")) == NULL)
@@ -170,7 +248,7 @@ int main(int argc, char * argv[])
 	duration = strtok(end, " \n\t");
 	numChild = args.numChild;
 
-	while(terminate < args.numChild)
+	while(terminate < args.numChild+2)
 	{
 		if((timeInc + sharedSum -> nanoSecs) >= 1000000000.0)
 		{
@@ -181,7 +259,27 @@ int main(int argc, char * argv[])
 		{
 			sharedSum -> nanoSecs += timeInc;
 		}
-			
+		// overTime == 1
+		if( doneflag == 1)
+		{
+			if(pids[0] == -1)
+			{
+				fprintf(writeptr, "Process terminated at %d Seconds, %f nanoseconds because process ran over 2 seconds.", sharedSum -> seconds, sharedSum -> nanoSecs);
+				break;
+			}
+			else
+			{
+				for(i = 0; i < args.numChild; i++)
+				{
+					kill(pids[i], SIGKILL);
+				}
+
+				fprintf(writeptr, "Process terminated at %d Seconds, %f nanoseconds because process ran over 2 seconds.", sharedSum -> seconds, sharedSum -> nanoSecs);
+				break;
+
+			}
+		}
+	
 		if(numChild > 0)
 		{
 			if(actChild < args.childAtTime)
@@ -198,7 +296,8 @@ int main(int argc, char * argv[])
 						}	
 					
 						fprintf(writeptr, "Child Process: %d    Started at: %d Seconds, %f NanoSeconds\n", childpid, sharedSum -> seconds, sharedSum -> nanoSecs);
-
+						pids[childLaunch] = childpid;
+						childLaunch++;
 						getNewLaunch = 1;
 						numChild--;
 						actChild++;
