@@ -1,0 +1,10 @@
+Programmer:      Andrew McCormick 
+Main Program .c: main.c     
+Class:           CS 4760 Operating Systems    
+Instructor:      Mark Hauschild   
+Due Date:        3/5/2019
+
+	This program takes in two files; one that it reads from and another it writes data to.  When the program starts, after the user writes the executable oss, the user has five options for command-line input.  They can write -h to find out the other two choices, -i to use a custom input file, -o to use a custom output file, -n to specify the number of child processes to launch, or -s to specify the number of child processes that can run at once.  If the user uses just the executable, the program will use the file input.dat as a default input file, output.dat as a default output file, 4 as the default option for the number of processes to run at once and 2 as the default for the number of process that can run at the same time.  After the user tells the program to run, the user should look inside the output file.  It should include the start time and termination time for each child process created by the parent process along with if it was terminated before the program was done.
+  
+	This program uses the input file the parent process how much to increment the shared memory clock between the parent and children processes.  The file then has set time that let the parent know what time they need to create a child process along with the duration the child process should stay alive.  The parent process does not wait for the children processes but continually checks to see if one terminates.  If more then two real world seconds pass for the parent process is done or CTRL-C is pushed, the parent process will terminate all the children process still alive, output a termination message to the output file, and close and release all shared memory before terminating. 
+
