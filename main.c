@@ -32,10 +32,14 @@ int main(int argc, char * argv[])
 	int shmID = 0;
 	int parentCounter = 0;
 	int status;
+	int actChild = 0;
 	
-	double timeInc = 0;
+	double timeInc = 0.0;
+	double secLaunch = 0.0;
+	double nanoLaunch = 0.0;
 
 	char fileInput[100];
+	char *end;
 
 	pid_t childpid;
 
@@ -133,26 +137,14 @@ int main(int argc, char * argv[])
 		sharedSum -> nanoSecs = 0;
 	}
 
-	printf("\n%d\n%d\n", sharedSum -> seconds, sharedSum -> nanoSecs);
+	//printf("\n%d\n%d\n", sharedSum -> seconds, sharedSum -> nanoSecs);
 
 /*****************************************************************
  *
  * 		Creating Fork and Exec
  *
  *****************************************************************/
-/*
-	if((sharedSum = (SharedTime *) shmat(shmID, NULL, 0)) == (void *)-1)
-	{
-		perror("Failed to attach shared memeory segment");
 		
-		if(shmctl(shmID, IPC_RMID, NULL) == -1)
-		{
-			perror("Failed to remove memory segment");
-		}
-	
-		return EXIT_FAILURE;
-	}
-*/
 	 // Pulling first line from input file and checking if not data exists
 	if(fgets(fileInput, 100, readptr) == NULL)
 	{
@@ -160,10 +152,23 @@ int main(int argc, char * argv[])
 		return EXIT_FAILURE;
 	}
 
-	timeInc = (int) strtol(fileInput, NULL, 10); // Converting char* into integer
+	timeInc = (double) strtol(fileInput, NULL, 10); // Converting char* into integer
+
+	if(fgets(fileInput, 100, readptr) == NULL)
+	{
+		perror("oss: Error: Line 2 in the input file is empty");
+		return EXIT_FAILURE;
+	}
+
+	printf("\nfile:%s\n", fileInput);
 
 	
-	for(parentCounter = 0; parentCounter < args.numChild; parentCounter++)
+	secLaunch = (double) strtod(fileInput, &end);
+
+	nanoLaunch = (double) strtod(end, NULL);
+	
+	printf("\nsec:%f nano:%f\n", secLaunch, nanoLaunch);
+	while(args.numChild != 0)
 	{
 		if((timeInc + sharedSum -> nanoSecs) == 1000000000)
 		{
@@ -174,8 +179,12 @@ int main(int argc, char * argv[])
 		{
 			sharedSum -> nanoSecs += timeInc;
 		}
-
-		printf("\nSecs%d Nano%d\n", sharedSum -> seconds, sharedSum -> nanoSecs);
+		
+		
+		//if(actChild < args.childAtTime)
+		
+			
+		//printf("\nSecs%d Nano%d\n", sharedSum -> seconds, sharedSum -> nanoSecs);
 		if((childpid = fork()) == 0)
 		{	
 			printf("%d is running\n", getpid());
@@ -190,6 +199,7 @@ int main(int argc, char * argv[])
 			childpid = wait(&status);
 		}
 		//printf("\n%d\n%d\n", sharedSum -> seconds, sharedSum -> nanoSecs);
+		args.numChild -= 1;
 	}	
 
 
