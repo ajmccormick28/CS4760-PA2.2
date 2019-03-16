@@ -25,8 +25,10 @@ int main(int argc, char *argv[])
 	int durationSecs = 0;
 	int terminate = 0;
 
+	// Getting duration time from parent process input
 	double durationNano = (double) strtod(argv[0], NULL);
 
+	// Getting Key
 	key_t key = ftok("main.c", 50);
 	
 	if(key == -1)
@@ -34,14 +36,18 @@ int main(int argc, char *argv[])
 		perror("Failed to derive key:");
 		return EXIT_FAILURE;
 	}
-
+	
+	// Get attched memory
 	shmID = shmget(key, sizeof(SharedTime), 0666 | IPC_CREAT);
 
 	
+	// Already created, access and attach it
         if((shmID == -1) && (errno != EEXIST))
         {
                 return EXIT_FAILURE;
         }
+	
+	// Successfully Created, mush attach and initialize variables
         else
         {
                 sharedSum = (SharedTime *)shmat(shmID, NULL, 0);
@@ -53,6 +59,7 @@ int main(int argc, char *argv[])
 
         }
 	
+	// Adding duration to shared time to find the time to terminate child
 	if((durationNano + sharedSum -> nanoSecs) >= 1000000000.0)
 	{
 		durationNano = (durationNano + sharedSum -> nanoSecs) - 1000000000.0;
@@ -63,9 +70,11 @@ int main(int argc, char *argv[])
 		durationNano = durationNano + sharedSum -> nanoSecs;
 		durationSecs = sharedSum -> seconds;
 	}
-
+	
+	// Loop to check when it is time to terminate child
 	while(terminate != 1)
 	{
+		// Checking to see if the seconds are equal
 		if(durationSecs == (sharedSum -> seconds))
 		{
 			if(durationNano <= sharedSum -> nanoSecs)
@@ -73,6 +82,8 @@ int main(int argc, char *argv[])
 				terminate = 1;
 			}
 		}
+
+		// Checking to see if seconds are unequal
 		else if(durationSecs < sharedSum -> seconds)
 		{
 			terminate = 1;

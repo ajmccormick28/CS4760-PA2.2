@@ -25,6 +25,12 @@ static SharedTime *sharedSum;
 static const char *optString = "ho:i:n:s:";
 static volatile sig_atomic_t doneflag = 0;
 
+/**************************************************
+ *
+ * 		Siginal Code                    
+ *
+ *************************************************/ 		
+
 int overTime = 0;
 
 // ARGSUSED
@@ -40,10 +46,11 @@ static void myhandler(int s)
 	struct sigaction act;
 	int errsave;
 	errsave = errno;
-	//write(STDERR_FILENO, &aster, 1);
 	overTime = 1;
 	errno = errsave;
 }
+
+// Set up myhandler for SIGPROF
 
 static int setupinterrupt(void)
 {
@@ -52,6 +59,8 @@ static int setupinterrupt(void)
 	act.sa_flags = 0;
 	return (sigemptyset(&act.sa_mask) || sigaction(SIGPROF, &act, NULL));
 }
+
+// Set ITIMER_PROF for 2-second intervals
 
 static int setupitimer(void)
 {
@@ -77,17 +86,6 @@ int main(int argc, char * argv[])
 		return EXIT_FAILURE;
 	}
 
-	/*if((sigemptyset(&intmask) == -1) || (sigaddset(&intmask, SIGINT) == -1))
-	{	
-		perror("Failed to initialize the signal mask");
-		return EXIT_FAILURE;
-	}
-	
-	if(sigprocmask(SIG_BLOCK, &intmask, NULL) == -1)
-	{
-		perror("Failed to change signal mask");
-	}
-	*/
 	FILE *readptr;
 	FILE *writeptr;
 
@@ -102,6 +100,7 @@ int main(int argc, char * argv[])
 	int numChild = 0;
 	int i = 0;
 	int childLaunch = 0;
+	int noLines = 0;
 		
 	double timeInc = 0.0;
 	double nanoLaunch = 0.0;
@@ -151,6 +150,7 @@ int main(int argc, char * argv[])
 		opt = getopt(argc, argv, optString);
 	}
 
+	// Setting up signal handler of CTRL-C
 	act.sa_handler = setdoneflag;
 	act.sa_flags = 0;
 	if((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1))
@@ -159,6 +159,7 @@ int main(int argc, char * argv[])
 		return EXIT_FAILURE;
 	}
 	
+	// Intalizing array to hold child pids incasee of termination
 	int pids[args.numChild];
 	pids[0] = -1;
 
@@ -169,6 +170,7 @@ int main(int argc, char * argv[])
 		return EXIT_FAILURE;
 	}
 
+	// Opening output file and error checking
 	if((writeptr = fopen(args.outputFileName, "w")) == NULL)
 	{
 		perror("oss: Error");
@@ -194,6 +196,7 @@ int main(int argc, char * argv[])
  *
  ************************************************************/ 
 
+	// Get attached memory, creating it if necessary
 	shmID = shmget(key, sizeof(SharedTime), 0666 | IPC_CREAT);
 	
 	if((shmID == -1) && (errno != EEXIST))
@@ -201,6 +204,7 @@ int main(int argc, char * argv[])
 		return EXIT_FAILURE;
 	}
 
+	// Already created, access and attach it
 	if(shmID == -1)
 	{
 		if(((shmID = shmget(key, sizeof(SharedTime), PERM)) == -1) || ((sharedSum = (SharedTime *)shmat(shmID, NULL, 0)) == (void *)-1))
@@ -208,7 +212,8 @@ int main(int argc, char * argv[])
 			return EXIT_FAILURE;
 		}
 	}
-		
+
+	// Successfully Created, must attach and initialize variables		
 	else
 	{
 		sharedSum = (SharedTime *)shmat(shmID, NULL, 0);
@@ -228,7 +233,7 @@ int main(int argc, char * argv[])
  *
  *****************************************************************/
 		
-	 // Pulling first line from input file and checking if not data exists
+	 // Pulling first line from input file and checking if data exists
 	if(fgets(fileInput, 100, readptr) == NULL)
 	{
 	        perror("logParse: Error: Line 1 in the input file is empty");
@@ -237,36 +242,52 @@ int main(int argc, char * argv[])
 
 	timeInc = (double) strtod(fileInput, NULL); // Converting char* into integer
 
+	// Pulling second line from input file and checking if data exists
 	if(fgets(fileInput, 100, readptr) == NULL)
 	{
 		perror("oss: Error: Line 2 in the input file is empty");
 		return EXIT_FAILURE;
 	}
 
+	// Setting the seconds, nanoseconds, and duration variables from input file data
 	secLaunch = (int) strtol(fileInput, &end, 10);
 	nanoLaunch = (double) strtod(end, &end);
 	duration = strtok(end, " \n\t");
 	numChild = args.numChild;
 
-	while(terminate < args.numChild+2)
+/*******************************************************************
+ *
+ * 		Main Loop of Program 
+ *
+ *******************************************************************/
+
+	while(terminate < args.numChild)
 	{
+		// Incremening Shared Time 
+		// Checking if nanoseconds are greater than 1 second
 		if((timeInc + sharedSum -> nanoSecs) >= 1000000000.0)
 		{
 			sharedSum -> seconds += 1;
 			sharedSum -> nanoSecs = 0.0;
 		}
+			
+		// If nanoseconds are not greater than one second
 		else
 		{
 			sharedSum -> nanoSecs += timeInc;
 		}
-		// overTime == 1
-		if( doneflag == 1)
+
+		// Checking for kill signals 
+		if(overTime == 1 || doneflag == 1)
 		{
+			// If no child processes have been created
 			if(pids[0] == -1)
 			{
-				fprintf(writeptr, "Process terminated at %d Seconds, %f nanoseconds because process ran over 2 seconds.", sharedSum -> seconds, sharedSum -> nanoSecs);
+				fprintf(writeptr, "Process terminated at %d Seconds, %f nanoseconds", sharedSum -> seconds, sharedSum -> nanoSecs);
 				break;
 			}
+			
+			// If child processes have been created
 			else
 			{
 				for(i = 0; i < args.numChild; i++)
@@ -274,18 +295,22 @@ int main(int argc, char * argv[])
 					kill(pids[i], SIGKILL);
 				}
 
-				fprintf(writeptr, "Process terminated at %d Seconds, %f nanoseconds because process ran over 2 seconds.", sharedSum -> seconds, sharedSum -> nanoSecs);
+				fprintf(writeptr, "Process terminated at %d Seconds, %f nanoseconds", sharedSum -> seconds, sharedSum -> nanoSecs);
 				break;
 
 			}
 		}
 	
+		// Checking to see if anymore childern need to be created
 		if(numChild > 0)
 		{
-			if(actChild < args.childAtTime)
+			// Checking to see if the number of childern excuting is over the max
+			if(actChild < args.childAtTime && actChild <= 20 && noLines == 0)
 			{
+				// Checking to see if a child needs to be launched
 				if(secLaunch == (sharedSum -> seconds))
 				{	
+					// Checking to see if the shared memory nanoseconds is greater than the child process launch time
 					if(nanoLaunch <=  (sharedSum -> nanoSecs))
 					{ 
 						if((childpid = fork()) == 0)
@@ -294,49 +319,62 @@ int main(int argc, char * argv[])
 							perror("exec Failed:");
 							return EXIT_FAILURE;
 						}	
-					
+						
+						// Outputing the child process creation time
 						fprintf(writeptr, "Child Process: %d    Started at: %d Seconds, %f NanoSeconds\n", childpid, sharedSum -> seconds, sharedSum -> nanoSecs);
+
 						pids[childLaunch] = childpid;
-						childLaunch++;
-						getNewLaunch = 1;
-						numChild--;
-						actChild++;
+						childLaunch++; // Number of childern launched
+						getNewLaunch = 1; // Setting flag to get new child information
+						numChild--;  // Decrementing the number of childern that need to be launched
+						actChild++; // Keeping track of active child processes
 					}
 				}
-			
+				
+				// Checking to see if the seconds are not equal
 				else if(secLaunch < sharedSum -> seconds)
 				{
 					if((childpid = fork()) == 0)
 					{
-						execl("./user", "hello", NULL);
+						execl("./user", duration, NULL);
 						perror("exec Failed:");
 						return EXIT_FAILURE;
 					}
+					
+					// Outputting the child process creation time
+ 					fprintf(writeptr, "Child Process: %d    Started at: %d Seconds, %f NanoSeconds\n", childpid, sharedSum -> seconds, sharedSum -> nanoSecs);
 				
-					getNewLaunch = 1;
-					numChild--;
-					actChild++; 
-				}
+                                        // See commments above
+                                        pids[childLaunch] = childpid;
+                                        childLaunch++;
+                                        getNewLaunch = 1;
+                                        numChild--;
+                                        actChild++;
 
+				}
+				
+				// Getting new information from the input file
 				if(getNewLaunch == 1 && numChild > 0)
 				{
         				if(fgets(fileInput, 100, readptr) == NULL)
         				{			
-                				perror("oss: Error: Line 2 in the input file is empty");
-                				return EXIT_FAILURE;
+                				noLines = 1;
+						numChild = 0;
+						args.numChild = childLaunch;
         				}
 
               				secLaunch = (int) strtol(fileInput, &end, 10);
 					nanoLaunch = (double) strtod(end, &end);
 					duration = strtok(end, " \n\t");		
 	
-					getNewLaunch = 0;
+					getNewLaunch = 0; // Resetting flag
 				}
 			}
 		}
 		
-		testpid = waitpid(-1, &status, WNOHANG);
+		testpid = waitpid(-1, &status, WNOHANG); // Checking for terminated child process
 		
+		// Outputting terminated child process information
 		if(testpid > 0)
 		{
 			fprintf(writeptr, "Child Process: %d Terminated at: %d Seconds, %f Nanoseconds\n", testpid, sharedSum -> seconds, sharedSum -> nanoSecs);
@@ -357,7 +395,9 @@ int main(int argc, char * argv[])
 		return EXIT_FAILURE;
 	}
 	
+	// Closing file pointers	
 	fclose(readptr);
 	fclose(writeptr);
+
 	return EXIT_SUCCESS;
 }

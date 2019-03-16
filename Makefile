@@ -33,4 +33,4 @@ detachAndRemove.o: detachAndRemove.c detachAndRemove.h
 #cleaning up
 
 clean:
-	/bin/rm -f *.o $(TARGET)
+	/bin/rm -f *.o $(TARGET) $(TARGET2)
