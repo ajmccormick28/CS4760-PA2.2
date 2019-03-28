@@ -88,7 +88,7 @@ int main(int argc, char * argv[])
 	}
 */
 	FILE *readptr;
-	FILE *writeptr;
+	FILE *palptr;
 
 	int opt = 0;
 	int shmID = 0;
@@ -165,11 +165,30 @@ int main(int argc, char * argv[])
 	//pids[0] = -1;
 
 	// Opening input file and error checking
+	
 	if((readptr = fopen(args.inputFileName, "r")) == NULL)
 	{
 		perror("Master: Error");
 		return EXIT_FAILURE;
 	}
+
+	// Opening both output files to clear or create them
+	
+	if((palptr = fopen(args.palin, "w")) == NULL)
+        {
+                perror("Master: Error");
+                return EXIT_FAILURE;
+        }
+
+	fclose(palptr);
+
+	if((palptr = fopen(args.noPalin, "w")) == NULL)
+        {
+                perror("Master: Error");
+                return EXIT_FAILURE;
+        }
+
+	fclose(palptr);
 
 /*************************************************************
  *
@@ -237,7 +256,7 @@ int main(int argc, char * argv[])
 	strcpy(inputArr -> input[0], fileInput);
 
 
-	while(fgets(fileInput, 100, readptr) != NULL)
+	while(fgets(fileInput, 100, readptr) != NULL && inputArrCount < args.numChild)
 	{
 		strcpy(inputArr -> input[inputArrCount], fileInput);
 		
@@ -253,18 +272,21 @@ int main(int argc, char * argv[])
 	}
   
 */
-char inputArrCountSt[10];
-sprintf(inputArrCountSt, "%d", inputArrCount);
+//	for(i = 0; i < inputArrCount; i++)
+//	{
 
-	printf("%s\n", inputArrCountSt);
-                                      if((childpid = fork()) == 0)
-                                                {
-                                                        execl("./palin", inputArrCountSt, NULL);
-                                                        perror("exec Failed:");
-                                                        return EXIT_FAILURE;
-                                                }
+		char inputArrCountSt[10];
+		sprintf(inputArrCountSt, "%d", i);
 
+		//printf("%s\n", inputArrCountSt);
+                if((childpid = fork()) == 0)
+                {
+                	execl("./palin", inputArrCountSt, NULL);
+                        perror("exec Failed:");
+                        return EXIT_FAILURE;
+                }
 
+//	}
 
 
 /*******************************************************************
@@ -401,7 +423,7 @@ sprintf(inputArrCountSt, "%d", inputArrCount);
  *
  *****************************************************************/ 		
 
-	childpid = wait(&status);
+	while((testpid = wait(&status)) > 0);
 
 	if(detachAndRemove(shmID, inputArr) == -1)
 	{

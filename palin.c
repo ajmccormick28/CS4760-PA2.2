@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include "inputHold.h"
+#include "stack.h"
 #define PERM (S_IRUSR | S_IWUSR)
 
 static InputHold *inputArr;
@@ -23,13 +24,17 @@ int main(int argc, char *argv[])
 {
 	int shmID;
 	int i = 0;
-	
-	// Getting duration time from parent process input
-	int inputArrCount = atoi(argv[0]);
-	
+	int stringLen = 0;
+	int nonSemFlag = 0;
 
-	printf("I'm here\n");
-	printf("%d\n", inputArrCount);
+	// Getting duration time from parent process input
+	int index = atoi(argv[0]);
+
+	// Creating an object of struct StackItem in stack.c
+	StackItem lineInput;	
+
+	// Creating the stack in stack.c
+	Stack *stack = stackCreate();
 
 	// Getting Key
 	key_t key = ftok("main.c", 50);
@@ -50,7 +55,7 @@ int main(int argc, char *argv[])
                 return EXIT_FAILURE;
         }
 	
-	// Successfully Created, mush attach and initialize variables
+	// Successfully Created, must attach and initialize variables
         else
         {
                 inputArr = (InputHold *)shmat(shmID, NULL, 0);
@@ -61,14 +66,59 @@ int main(int argc, char *argv[])
                 }
 
         }
-	
-        for(i = 0; i < inputArrCount; i++)
-        {
-                printf("%d\n", i);
-                printf("%s\n", inputArr -> input[i]);
-        }
 
-	
+	stringLen = strlen(inputArr -> input[index]) - 1;
+
+	// If length is even
+	if((stringLen % 2) == 0)
+	{
+		for(i = 0; i < (stringLen / 2); i++)
+		{
+			printf("lower: %c First: %c\n", inputArr -> input[index][i], inputArr -> input[index][stringLen - 1 - i]);
+
+			if(inputArr -> input[index][i] != inputArr -> input[index][stringLen - 1 - i])
+			{
+				nonSemFlag = 1;
+			}
+		}
+		
+                if(nonSemFlag == 0)
+                {
+                        printf("Semphore: %s\n", inputArr -> input[index]);
+                }
+
+                else if(nonSemFlag == 1)
+                {
+                         printf("Non Semphore: %s\n", inputArr -> input[index]);
+                }
+
+	}
+
+	// If length is odd
+	else
+	{
+                for(i = 0; i < ((stringLen - 1) / 2); i++)
+                {
+                        if(inputArr -> input[index][i] != inputArr -> input[index][stringLen - 1 - i])
+                        {
+                                nonSemFlag = 1;
+                        }
+                }
+
+		if(nonSemFlag == 0)
+		{
+			printf("Semphore: %s\n", inputArr -> input[index]);
+		}
+		
+		else if(nonSemFlag == 1)
+		{
+			 printf("Non Semphore: %s\n", inputArr -> input[index]);
+		}
+	}	              
+
+
+
+
 
  	// Detach from shared memory
 	shmdt(inputArr);
