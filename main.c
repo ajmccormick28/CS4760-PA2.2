@@ -1,7 +1,7 @@
 // Programmer: Andrew McCormick 
 // Function:   main.c
-// Class:      CS-4760 PA 1
-// Date:       2/7/2019
+// Class:      CS-4760 PA 2
+// Date:       3/21/2019
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,12 +17,12 @@
 #include <signal.h>
 #include <sys/time.h>
 #include "optArg.h"
-#include "sharedTime.h"
+#include "inputHold.h"
 #include "detachAndRemove.h"
 #define PERM (S_IRUSR | S_IWUSR) 
 
-static SharedTime *sharedSum;
-static const char *optString = "ho:i:n:s:";
+static InputHold *inputArr;
+static const char *optString = "ho:i:s:";
 static volatile sig_atomic_t doneflag = 0;
 
 /**************************************************
@@ -30,7 +30,7 @@ static volatile sig_atomic_t doneflag = 0;
  * 		Siginal Code                    
  *
  *************************************************/ 		
-
+/*
 int overTime = 0;
 
 // ARGSUSED
@@ -71,9 +71,10 @@ static int setupitimer(void)
 	return (setitimer(ITIMER_PROF, &value, NULL));
 }
 
-
+*/
 int main(int argc, char * argv[])
 {
+/*
 	if(setupinterrupt() == -1)
 	{
 		perror("Failed to set up handler for SIGPROF");
@@ -85,7 +86,7 @@ int main(int argc, char * argv[])
 		perror("Failed to set up the ITIMER_PROF interval timer");
 		return EXIT_FAILURE;
 	}
-
+*/
 	FILE *readptr;
 	FILE *writeptr;
 
@@ -98,10 +99,13 @@ int main(int argc, char * argv[])
 	int secLaunch = 0;
 	int terminate = 0;
 	int numChild = 0;
-	int i = 0;
+	//int i = 0;
 	int childLaunch = 0;
 	int noLines = 0;
-		
+
+	int inputArrCount = 1;
+	int i = 0;	
+	
 	double timeInc = 0.0;
 	double nanoLaunch = 0.0;
 	
@@ -114,7 +118,7 @@ int main(int argc, char * argv[])
 
 	struct sigaction act;
 
-	OptArg args = {"input.txt", "output.txt", 4, 2};
+	OptArg args = {"input.txt", "palin.out", "nopalin.out", 20};
 
 	opt = getopt(argc, argv, optString);
 
@@ -122,34 +126,31 @@ int main(int argc, char * argv[])
 	{
 		switch(opt)
 		{
-			// for option -o outputfile
-			case 'o':
-				args.outputFileName = optarg;
-				break;
-
-			// for option -i inputfile
+			// for option -i inputFileName
 			case 'i':
 				args.inputFileName = optarg;
 				break;
 					
-			// for option -n number of child processes
+			// for option -s number of childern running at a time
 			case 'n':
 				args.numChild = atoi(optarg);
 				break;
-			
-			// for option -s number of childern running at a time
-			case 's':
-				args.childAtTime = atoi(optarg);
-				break;
 
 			case 'h':
-				printf("Program Defaults:\n-i: input.txt,\n-o output.txt,\n-n: 4 total child processes,\n-s: Max of 2 childs running at a time\n");
+				printf("Program Defaults:\n-i: input.txt,\n-n: 20 total child processes,\n");
 				return EXIT_SUCCESS;
 		}
 		
 		opt = getopt(argc, argv, optString);
 	}
 
+	// Checking if number of child processes is too large
+	if(args.numChild > 20)
+	{
+		printf("The number of child processes cannot exceed 20");
+		return EXIT_FAILURE;
+	}
+/*	
 	// Setting up signal handler of CTRL-C
 	act.sa_handler = setdoneflag;
 	act.sa_flags = 0;
@@ -158,22 +159,15 @@ int main(int argc, char * argv[])
 		perror("Failed to set SIGINT handler");
 		return EXIT_FAILURE;
 	}
-	
+*/	
 	// Intalizing array to hold child pids incasee of termination
-	int pids[args.numChild];
-	pids[0] = -1;
+	//int pids[args.numChild];
+	//pids[0] = -1;
 
 	// Opening input file and error checking
 	if((readptr = fopen(args.inputFileName, "r")) == NULL)
 	{
-		perror("oss: Error");
-		return EXIT_FAILURE;
-	}
-
-	// Opening output file and error checking
-	if((writeptr = fopen(args.outputFileName, "w")) == NULL)
-	{
-		perror("oss: Error");
+		perror("Master: Error");
 		return EXIT_FAILURE;
 	}
 
@@ -197,7 +191,7 @@ int main(int argc, char * argv[])
  ************************************************************/ 
 
 	// Get attached memory, creating it if necessary
-	shmID = shmget(key, sizeof(SharedTime), 0666 | IPC_CREAT);
+	shmID = shmget(key, sizeof(InputHold), 0666 | IPC_CREAT);
 	
 	if((shmID == -1) && (errno != EEXIST))
 	{
@@ -207,7 +201,7 @@ int main(int argc, char * argv[])
 	// Already created, access and attach it
 	if(shmID == -1)
 	{
-		if(((shmID = shmget(key, sizeof(SharedTime), PERM)) == -1) || ((sharedSum = (SharedTime *)shmat(shmID, NULL, 0)) == (void *)-1))
+		if(((shmID = shmget(key, sizeof(InputHold), PERM)) == -1) || ((inputArr = (InputHold *)shmat(shmID, NULL, 0)) == (void *)-1))
 		{
 			return EXIT_FAILURE;
 		}
@@ -216,15 +210,15 @@ int main(int argc, char * argv[])
 	// Successfully Created, must attach and initialize variables		
 	else
 	{
-		sharedSum = (SharedTime *)shmat(shmID, NULL, 0);
+		inputArr = (InputHold *)shmat(shmID, NULL, 0);
 		
-		if(sharedSum == (void *)-1)
+		if(inputArr == (void *)-1)
 		{
 			return EXIT_FAILURE;
 		}
 		
-		sharedSum -> seconds = 0;
-		sharedSum -> nanoSecs = 0;
+		//inputArr -> seconds = 0;
+		
 	}
 
 /*****************************************************************
@@ -236,31 +230,49 @@ int main(int argc, char * argv[])
 	 // Pulling first line from input file and checking if data exists
 	if(fgets(fileInput, 100, readptr) == NULL)
 	{
-	        perror("logParse: Error: Line 1 in the input file is empty");
+		perror("Master: Error: File contains no contents");
 		return EXIT_FAILURE;
 	}
+	
+	strcpy(inputArr -> input[0], fileInput);
 
-	timeInc = (double) strtod(fileInput, NULL); // Converting char* into integer
 
-	// Pulling second line from input file and checking if data exists
-	if(fgets(fileInput, 100, readptr) == NULL)
+	while(fgets(fileInput, 100, readptr) != NULL)
 	{
-		perror("oss: Error: Line 2 in the input file is empty");
-		return EXIT_FAILURE;
+		strcpy(inputArr -> input[inputArrCount], fileInput);
+		
+		inputArrCount++;
 	}
+/*
+	printf("%d\n", inputArrCount);
 
-	// Setting the seconds, nanoseconds, and duration variables from input file data
-	secLaunch = (int) strtol(fileInput, &end, 10);
-	nanoLaunch = (double) strtod(end, &end);
-	duration = strtok(end, " \n\t");
-	numChild = args.numChild;
+	for(i = 0; i < inputArrCount; i++)
+	{
+		printf("%d\n", i);
+		printf("%s\n", inputArr -> input[i]);
+	}
+  
+*/
+char inputArrCountSt[10];
+sprintf(inputArrCountSt, "%d", inputArrCount);
+
+	printf("%s\n", inputArrCountSt);
+                                      if((childpid = fork()) == 0)
+                                                {
+                                                        execl("./palin", inputArrCountSt, NULL);
+                                                        perror("exec Failed:");
+                                                        return EXIT_FAILURE;
+                                                }
+
+
+
 
 /*******************************************************************
  *
  * 		Main Loop of Program 
  *
  *******************************************************************/
-
+/*
 	while(terminate < args.numChild)
 	{
 		// Incremening Shared Time 
@@ -382,14 +394,16 @@ int main(int argc, char * argv[])
 			actChild--;
 		}
 	}
-
+*/
 /*****************************************************************
  *
  * 		Detaching Shared Memory
  *
  *****************************************************************/ 		
 
-	if(detachAndRemove(shmID, sharedSum) == -1)
+	childpid = wait(&status);
+
+	if(detachAndRemove(shmID, inputArr) == -1)
 	{
 		perror("Failed to destory shared memory segment");
 		return EXIT_FAILURE;
@@ -397,7 +411,6 @@ int main(int argc, char * argv[])
 	
 	// Closing file pointers	
 	fclose(readptr);
-	fclose(writeptr);
 
 	return EXIT_SUCCESS;
 }

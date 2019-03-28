@@ -9,10 +9,9 @@
 typedef struct
 {
 	const char *inputFileName; // -i option
-	const char *outputFileName; // -o option
+	const char *palin; // Palindrom file
+	const char *noPalin; // non-Palindrom file
 	int numChild; // -n option
-	int childAtTime; // -s option
-
 } OptArg;
 
 #endif

@@ -2,12 +2,12 @@
 
 CC = gcc
 CFLAGS = -g
-TARGET = oss
-TARGET2 = user
+TARGET = master
+TARGET2 = palin
 LIBS = 
-SRC = main.c user.c detachAndRemove.c
+SRC = main.c palin.c detachAndRemove.c
 OBJFILEREAD = main.o detachAndRemove.o
-OBJCHILD = user.o
+OBJCHILD = palin.o
 
 #explicit rule
 
@@ -21,10 +21,10 @@ $(TARGET2): $(OBJCHILD)
 
 #implicit rules 
 
-main.o: main.c optArg.h sharedTime.h detachAndRemove.h
+main.o: main.c optArg.h inputHold.h detachAndRemove.h
 	$(CC) -c $(CFLAGS) main.c
 
-user.o: user.c sharedTime.h
+user.o: palin.c inputHold.h
 	$(CC) -c $(CFLAGS) user.c
 
 detachAndRemove.o: detachAndRemove.c detachAndRemove.h
