@@ -11,8 +11,9 @@
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
-#include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/wait.h>
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <semaphore.h>
 #include <pthread.h>
@@ -46,6 +47,9 @@ int main(int argc, char *argv[])
 	srand((int)time(&t) % getpid());
 
 	OptArg args;
+
+	args.palin = "palin.out";
+	args.noPalin = "nopalin.out";
 
 	//printf("I;m a child!\n");
 
@@ -102,7 +106,7 @@ int main(int argc, char *argv[])
 
 	
 	printf("semFlag: %d\n", semFlag);
-	//printf("I'm here\n");
+
 //	for(i = 0; i < 5; i++)
 //	{
 		//generating random number
@@ -214,7 +218,6 @@ int main(int argc, char *argv[])
 //	}
 
 	sem_close(semlockp);
-	
 	fclose(palptr);
  	// Detach from shared memory
 	shmdt(inputArr);

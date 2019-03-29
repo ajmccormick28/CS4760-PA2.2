@@ -9,7 +9,6 @@
 typedef struct
 {
 	char input[100][100];
-	
 }
 InputHold;
 
