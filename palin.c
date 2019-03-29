@@ -5,7 +5,7 @@
 
 #include <stdlib.h>
 #include <sys/ipc.h>
-#include <stdio.h>
+#include <stdio.h> 
 #include <sys/shm.h>
 #include <unistd.h>
 #include <string.h>
@@ -14,9 +14,18 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <semaphore.h>
+#include <pthread.h>
+#include <sys/file.h>
+#include <sys/time.h>
+#include <sys/ipc.h>
+#include "getNamed.h"
 #include "inputHold.h"
-#include "stack.h"
+#include "palinCheck.h"
+#include "optArg.h"
+
 #define PERM (S_IRUSR | S_IWUSR)
+#define SEMNAME "/Semfile"
 
 static InputHold *inputArr;
 
@@ -24,17 +33,24 @@ int main(int argc, char *argv[])
 {
 	int shmID;
 	int i = 0;
-	int stringLen = 0;
-	int nonSemFlag = 0;
+	//int stringLen = 0;
+	int semFlag = 0;
+
+	FILE *palptr;
+
+	time_t t;
+	struct tm *timeInfo;
+	time(&t);
+	timeInfo = localtime(&t);
+	time(&t);
+	srand((int)time(&t) % getpid());
+
+	OptArg args;
 
 	// Getting duration time from parent process input
 	int index = atoi(argv[0]);
 
-	// Creating an object of struct StackItem in stack.c
-	StackItem lineInput;	
-
-	// Creating the stack in stack.c
-	Stack *stack = stackCreate();
+	sem_t *semlockp;
 
 	// Getting Key
 	key_t key = ftok("main.c", 50);
@@ -67,9 +83,72 @@ int main(int argc, char *argv[])
 
         }
 
-	stringLen = strlen(inputArr -> input[index]) - 1;
+        if(getNamed(SEMNAME, &semlockp, 1) == -1)
+        {
+                perror("Failed to create named semaphore");
+                return EXIT_FAILURE;
+        }
 
-	// If length is even
+	//stringLen = strlen(inputArr -> input[index]) - 1;
+
+	// For loop to run 5 indicies 
+
+	semFlag = palinCheck(index);
+
+	for(i = 0; i < 5; i++)
+	{
+		//generating random number
+		int randNum = (rand() % 3) + 1;
+
+		sleep(randNum);
+
+		t = time(0);
+		time(&t);
+		timeInfo = localtime(&t);
+		time(&t);
+	
+		printf("Child Process #%d trying to enter the critical section: %s\n", getpid(), asctime(timeInfo));
+
+		while(sem_wait(semlockp) == -1)
+		{	
+			if(errno != EINTR)
+			{
+				perror("Failed to lock semlock");
+				return 1;
+			}
+		}
+
+		printf("Child Process #%d entered the critical section: %s\n", getpid(), asctime(timeInfo));
+
+		if(semFlag = 0)
+		{
+			if((palptr = fopen(args.palin, "a")) == NULL)
+			{
+				printf("error opening output file");
+				break;
+			}
+
+			sleep(2);
+
+			printf("PID: %d Index: %d String: %s", getpid(), index, inputArr -> input[index]);
+		}
+
+		else
+                {
+                        if((palptr = fopen(args.noPalin, "a")) == NULL)
+                        {
+                                printf("error opening output file");
+                                break;
+                        }
+
+                        sleep(2);
+
+                        printf("PID: %d Index: %d String: %s", getpid(), index, inputArr -> input[index]);
+                }
+
+		sleep(2);
+
+/*
 	if((stringLen % 2) == 0)
 	{
 		for(i = 0; i < (stringLen / 2); i++)
@@ -84,12 +163,12 @@ int main(int argc, char *argv[])
 		
                 if(nonSemFlag == 0)
                 {
-                        printf("Semphore: %s\n", inputArr -> input[index]);
+                        printf("Palin: %s\n", inputArr -> input[index]);
                 }
 
                 else if(nonSemFlag == 1)
                 {
-                         printf("Non Semphore: %s\n", inputArr -> input[index]);
+                         printf("Non Palin: %s\n", inputArr -> input[index]);
                 }
 
 	}
@@ -107,19 +186,28 @@ int main(int argc, char *argv[])
 
 		if(nonSemFlag == 0)
 		{
-			printf("Semphore: %s\n", inputArr -> input[index]);
+			printf("Palin: %s\n", inputArr -> input[index]);
 		}
 		
 		else if(nonSemFlag == 1)
 		{
-			 printf("Non Semphore: %s\n", inputArr -> input[index]);
+			 printf("Non Palin: %s\n", inputArr -> input[index]);
 		}
 	}	              
+*/
+        	if(sem_post(semlockp) == -1)
+        	{
+                	perror("Failed to unlock semlock");
+                	return 1;
+        	}
 
+		printf("Child Process #%d exited the critical section: %s\n", getpid(), asctime(timeInfo));
+	
+	}
 
-
-
-
+	sem_close(semlockp);
+	
+	fclose(palptr);
  	// Detach from shared memory
 	shmdt(inputArr);
 

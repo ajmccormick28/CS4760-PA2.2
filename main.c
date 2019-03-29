@@ -16,11 +16,18 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <sys/time.h>
+#include <semaphore.h>
+#include <pthread.h>
+#include <sys/file.h>
 #include "optArg.h"
 #include "inputHold.h"
 #include "detachAndRemove.h"
-#define PERM (S_IRUSR | S_IWUSR) 
+#include "getNamed.h"
 
+#define PERM (S_IRUSR | S_IWUSR)
+#define SEMNAME "/Semfile" 
+//#define PERMS (mode_t) (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+//#define FLAGS (O_CREAT | O_EXCL)
 static InputHold *inputArr;
 static const char *optString = "ho:i:s:";
 static volatile sig_atomic_t doneflag = 0;
@@ -117,6 +124,8 @@ int main(int argc, char * argv[])
 	pid_t testpid;
 
 	struct sigaction act;
+
+	sem_t *semlockp;
 
 	OptArg args = {"input.txt", "palin.out", "nopalin.out", 20};
 
@@ -240,6 +249,24 @@ int main(int argc, char * argv[])
 		
 	}
 
+
+	if(getNamed(SEMNAME, &semlockp, 1) == -1)
+	{
+		perror("Failed to create named semaphore");
+		return EXIT_FAILURE;	
+	}
+/*
+	unsigned int value = 1;
+	sem_t *semlock = sem_open(SEMNAME, FLAGS, PERMS, 1);
+	
+	// Checking for successful creation 
+	if(semlock == SEM_FAILED)
+	{
+		printf("errno: %s\n", strerror(errno));
+		perror("Semaphore creation failed, exiting");
+		return EXIT_FAILURE;	
+	}
+*/
 /*****************************************************************
  *
  * 		Creating Fork and Exec
@@ -272,8 +299,8 @@ int main(int argc, char * argv[])
 	}
   
 */
-//	for(i = 0; i < inputArrCount; i++)
-//	{
+	for(i = 0; i < inputArrCount; i++)
+	{
 
 		char inputArrCountSt[10];
 		sprintf(inputArrCountSt, "%d", i);
@@ -286,7 +313,7 @@ int main(int argc, char * argv[])
                         return EXIT_FAILURE;
                 }
 
-//	}
+	}
 
 
 /*******************************************************************
@@ -417,6 +444,21 @@ int main(int argc, char * argv[])
 		}
 	}
 */
+
+
+	// Detaching from the Semaphore
+	//sem_close(semlock);
+
+	// Deleting the Semaphore
+	//sem_unlink(SEMNAME);
+	
+
+	if(destroyNamed(SEMNAME, semlockp) == -1)
+	{
+		perror("Failed to destory named semaphore");
+		return EXIT_FAILURE;
+	}
+
 /*****************************************************************
  *
  * 		Detaching Shared Memory
