@@ -1,6 +1,6 @@
 // Programmer: Andrew McCormick 
 // Function:   main.c
-// Class:      CS-4760 PA 2
+// Clas s:      CS-4760 PA 2
 // Date:       3/21/2019
 
 #include <stdio.h>
@@ -305,6 +305,7 @@ int main(int argc, char * argv[])
 		char inputArrCountSt[10];
 		sprintf(inputArrCountSt, "%d", i);
 
+		//printf("Made a child!\n");
 		//printf("%s\n", inputArrCountSt);
                 if((childpid = fork()) == 0)
                 {
@@ -476,5 +477,7 @@ int main(int argc, char * argv[])
 	// Closing file pointers	
 	fclose(readptr);
 
+
+	printf("I made it to the end");
 	return EXIT_SUCCESS;
 }

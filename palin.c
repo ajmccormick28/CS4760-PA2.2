@@ -47,7 +47,9 @@ int main(int argc, char *argv[])
 
 	OptArg args;
 
-	// Getting duration time from parent process input
+	//printf("I;m a child!\n");
+
+	// Getting index from parent process input
 	int index = atoi(argv[0]);
 
 	sem_t *semlockp;
@@ -91,12 +93,18 @@ int main(int argc, char *argv[])
 
 	//stringLen = strlen(inputArr -> input[index]) - 1;
 
+//	printf("stringlen: %d\n", stringLen);
 	// For loop to run 5 indicies 
+
+	//printf("I'm here\n");
 
 	semFlag = palinCheck(index);
 
-	for(i = 0; i < 5; i++)
-	{
+	
+	printf("semFlag: %d\n", semFlag);
+	//printf("I'm here\n");
+//	for(i = 0; i < 5; i++)
+//	{
 		//generating random number
 		int randNum = (rand() % 3) + 1;
 
@@ -120,12 +128,12 @@ int main(int argc, char *argv[])
 
 		printf("Child Process #%d entered the critical section: %s\n", getpid(), asctime(timeInfo));
 
-		if(semFlag = 0)
+		if(semFlag == 2)
 		{
-			if((palptr = fopen(args.palin, "a")) == NULL)
+			if((palptr = fopen(args.palin, "w")) == NULL)
 			{
-				printf("error opening output file");
-				break;
+				printf("error opening output file\n");
+				//break;
 			}
 
 			sleep(2);
@@ -135,10 +143,10 @@ int main(int argc, char *argv[])
 
 		else
                 {
-                        if((palptr = fopen(args.noPalin, "a")) == NULL)
+                        if((palptr = fopen(args.noPalin, "w")) == NULL)
                         {
-                                printf("error opening output file");
-                                break;
+                                printf("error opening output file\n");
+                                //break;
                         }
 
                         sleep(2);
@@ -203,13 +211,15 @@ int main(int argc, char *argv[])
 
 		printf("Child Process #%d exited the critical section: %s\n", getpid(), asctime(timeInfo));
 	
-	}
+//	}
 
 	sem_close(semlockp);
 	
 	fclose(palptr);
  	// Detach from shared memory
 	shmdt(inputArr);
+
+	printf("I made it to the end of child\n");
 
 	return EXIT_SUCCESS;
 }
