@@ -37,7 +37,7 @@ static volatile sig_atomic_t doneflag = 0;
  * 		Siginal Code                    
  *
  *************************************************/ 		
-/*
+
 int overTime = 0;
 
 // ARGSUSED
@@ -72,16 +72,16 @@ static int setupinterrupt(void)
 static int setupitimer(void)
 {
 	struct itimerval value;
-	value.it_interval.tv_sec = 2;
+	value.it_interval.tv_sec = 120;
 	value.it_interval.tv_usec = 0;
 	value.it_value = value.it_interval;
 	return (setitimer(ITIMER_PROF, &value, NULL));
 }
 
-*/
+
 int main(int argc, char * argv[])
 {
-/*
+
 	if(setupinterrupt() == -1)
 	{
 		perror("Failed to set up handler for SIGPROF");
@@ -93,7 +93,7 @@ int main(int argc, char * argv[])
 		perror("Failed to set up the ITIMER_PROF interval timer");
 		return EXIT_FAILURE;
 	}
-*/
+
 	FILE *readptr;
 	FILE *palptr;
 
@@ -161,7 +161,7 @@ int main(int argc, char * argv[])
 		printf("The number of child processes cannot exceed 20");
 		return EXIT_FAILURE;
 	}
-/*	
+	
 	// Setting up signal handler of CTRL-C
 	act.sa_handler = setdoneflag;
 	act.sa_flags = 0;
@@ -170,10 +170,10 @@ int main(int argc, char * argv[])
 		perror("Failed to set SIGINT handler");
 		return EXIT_FAILURE;
 	}
-*/	
+	
 	// Intalizing array to hold child pids incasee of termination
-	//int pids[args.numChild];
-	//pids[0] = -1;
+	int pids[args.numChild];
+	pids[0] = -1;
 
 	// Opening input file and error checking
 	
@@ -300,42 +300,116 @@ int main(int argc, char * argv[])
 	}
 
 */
-	for(i = 0; i < args.numChild; i++)
+	int numChildern = 0;
+	char doForLoop = 'y';
+	do
 	{
-                if(inputArrCount <= 0)
+		if(doneflag == 1)
                 {
-                        break;
+                	if(pids[0] == -1)
+                        {
+                                fprintf(stderr, "Process terminated by Control C\n");
+                        	break;
+                        }
+
+                        else
+                        {
+                                for(i = 0; i < numChildern; i++)
+                                {
+                                	kill(pids[i], SIGKILL);
+                                }
+
+                                fprintf(stderr, "Process terminated by Control C\n");
+	                        break;
+	                }
                 }
 
-                else if(inputArrCount < 5)
+                if(overTime == 1)
                 {
-                        indexCh = inputArrCount;
-                        inputArrCount -= 5;
+                        if(pids[0] == -1)
+                        {
+                                fprintf(stderr, "Process terminated because it took longer than 2 mins\n");
+                                break;
+                        }
+
+                        else
+                        {
+                                for(i = 0; i < numChildern; i++)
+                                {
+                                        kill(pids[i], SIGKILL);
+                                }
+
+                                fprintf(stderr, "Process terminated because it took longer than 2 mins\n");
+                                break;
+                        }
+                }
+		//printf("numchildern: %d, childLaunch: %d < args.numChild: %d, doForLoop: %c\n",numChildern, childLaunch, args.numChild, doForLoop);
+
+		if(numChildern <= 20 && childLaunch < args.numChild && doForLoop != 'n')
+		{
+			//for(i = 0; i < args.numChild; i++)
+			//{
+
+
+				if(inputArrCount <= 0)
+                		{
+                        		
+					doForLoop = 'n';
+                		}
+
+                		else if(inputArrCount < 5)
+                		{
+                        		indexCh = inputArrCount;
+                      			inputArrCount -= 5;
+					
+                		}
+
+                		else
+                		{
+                	        	inputArrCount -= 5;
+                	        	indexCh = 5;
+					
+        	        	}
+	
+				if(doForLoop != 'n')
+				{
+				char inputArrCountSt[10];
+				char indexChSt[10];
+				sprintf(inputArrCountSt, "%d", index);
+				sprintf(indexChSt, "%d", indexCh);
+		
+        	        	if((childpid = fork()) == 0)
+	                	{
+        	        		execl("./palin", inputArrCountSt, indexChSt, NULL);
+	                       		perror("exec Failed:");
+                        		return EXIT_FAILURE;
+                		}
+
+                                        pids[childLaunch] = childpid;
+                                        childLaunch++;
+                                        numChildern++;
+                                        
+                                        
+
+
+				index += 5;
+				}
+			//}
+		}
+		
+
+		testpid = waitpid(-1, &status, WNOHANG);
+		
+                if(testpid > 0)
+                {
+                        
+                        terminate++;
+                        numChildern--;
                 }
 
-                else
-                {
-                        inputArrCount -= 5;
-                        indexCh = 5;
-                }
-
-
-
-		char inputArrCountSt[10];
-		char indexChSt[10];
-		sprintf(inputArrCountSt, "%d", index);
-		sprintf(indexChSt, "%d", indexCh);
-		//printf("Made a child!\n");
-		//printf("%s\n", inputArrCountSt);
-                if((childpid = fork()) == 0)
-                {
-                	execl("./palin", inputArrCountSt, indexChSt, NULL);
-                        perror("exec Failed:");
-                        return EXIT_FAILURE;
-                }
-
-		index += 5;
+		//printf("terminate: %d < childLaunch: %d\n", terminate, childLaunch);
 	}
+	while(terminate < childLaunch);
 
 
 /*******************************************************************
@@ -487,7 +561,7 @@ int main(int argc, char * argv[])
  *
  *****************************************************************/ 		
 
-	while((testpid = wait(&status)) > 0);
+//	while((testpid = wait(&status)) > 0);
 
 	if(detachAndRemove(shmID, inputArr) == -1)
 	{
