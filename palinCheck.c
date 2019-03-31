@@ -48,7 +48,6 @@ int palinCheck(int index)
                 return EXIT_FAILURE;
         }
 
-
 	// Successfully Created, must attach and initialize variables
         else
         {
@@ -60,17 +59,9 @@ int palinCheck(int index)
                 }
 
         }
-
-
 	
         stringLen = strlen(inputArr -> input[index]) - 1;
 
-	//printf("stringlen: %d\n", stringLen);
-        
-
-
-
-	//printf("I'm here\n");
 	if((stringLen % 2) == 0)
         {
                 

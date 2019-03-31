@@ -29,7 +29,7 @@
 //#define PERMS (mode_t) (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
 //#define FLAGS (O_CREAT | O_EXCL)
 static InputHold *inputArr;
-static const char *optString = "ho:i:s:";
+static const char *optString = "hi:n:";
 static volatile sig_atomic_t doneflag = 0;
 
 /**************************************************
@@ -109,8 +109,10 @@ int main(int argc, char * argv[])
 	//int i = 0;
 	int childLaunch = 0;
 	int noLines = 0;
+	int indexCh = 5;
 
 	int inputArrCount = 1;
+	int index = 0;
 	int i = 0;	
 	
 	double timeInc = 0.0;
@@ -127,7 +129,7 @@ int main(int argc, char * argv[])
 
 	sem_t *semlockp;
 
-	OptArg args = {"input.txt", "palin.out", "nopalin.out", 20};
+	OptArg args = {"input.txt", "palin.out", "nopalin.out", 2};
 
 	opt = getopt(argc, argv, optString);
 
@@ -282,8 +284,7 @@ int main(int argc, char * argv[])
 	
 	strcpy(inputArr -> input[0], fileInput);
 
-
-	while(fgets(fileInput, 100, readptr) != NULL && inputArrCount < args.numChild)
+	while(fgets(fileInput, 100, readptr) != NULL)
 	{
 		strcpy(inputArr -> input[inputArrCount], fileInput);
 		
@@ -297,23 +298,43 @@ int main(int argc, char * argv[])
 		printf("%d\n", i);
 		printf("%s\n", inputArr -> input[i]);
 	}
-  
+
 */
-	for(i = 0; i < inputArrCount; i++)
+	for(i = 0; i < args.numChild; i++)
 	{
+                if(inputArrCount <= 0)
+                {
+                        break;
+                }
+
+                else if(inputArrCount < 5)
+                {
+                        indexCh = inputArrCount;
+                        inputArrCount -= 5;
+                }
+
+                else
+                {
+                        inputArrCount -= 5;
+                        indexCh = 5;
+                }
+
+
 
 		char inputArrCountSt[10];
-		sprintf(inputArrCountSt, "%d", i);
-
+		char indexChSt[10];
+		sprintf(inputArrCountSt, "%d", index);
+		sprintf(indexChSt, "%d", indexCh);
 		//printf("Made a child!\n");
 		//printf("%s\n", inputArrCountSt);
                 if((childpid = fork()) == 0)
                 {
-                	execl("./palin", inputArrCountSt, NULL);
+                	execl("./palin", inputArrCountSt, indexChSt, NULL);
                         perror("exec Failed:");
                         return EXIT_FAILURE;
                 }
 
+		index += 5;
 	}
 
 
