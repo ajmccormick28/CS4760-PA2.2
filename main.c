@@ -1,6 +1,6 @@
 // Programmer: Andrew McCormick 
 // Function:   main.c
-// Clas s:      CS-4760 PA 2
+// Class:      CS-4760 PA 3
 // Date:       3/21/2019
 
 #include <stdio.h>
@@ -26,16 +26,15 @@
 
 #define PERM (S_IRUSR | S_IWUSR)
 #define SEMNAME "/Semfile" 
-//#define PERMS (mode_t) (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
-//#define FLAGS (O_CREAT | O_EXCL)
+
 static InputHold *inputArr;
 static const char *optString = "hi:n:";
 static volatile sig_atomic_t doneflag = 0;
 
 /**************************************************
- *
- * 		Siginal Code                    
- *
+ *                                                *
+ * 		Siginal Code                      *
+ *                                                *
  *************************************************/ 		
 
 int overTime = 0;
@@ -67,7 +66,7 @@ static int setupinterrupt(void)
 	return (sigemptyset(&act.sa_mask) || sigaction(SIGPROF, &act, NULL));
 }
 
-// Set ITIMER_PROF for 2-second intervals
+// Set ITIMER_PROF for 2-minute interval
 
 static int setupitimer(void)
 {
@@ -78,10 +77,14 @@ static int setupitimer(void)
 	return (setitimer(ITIMER_PROF, &value, NULL));
 }
 
+/**************************************************
+ *                                                *
+ *                 Main Code                      *
+ *                                                *
+ *************************************************/
 
 int main(int argc, char * argv[])
 {
-
 	if(setupinterrupt() == -1)
 	{
 		perror("Failed to set up handler for SIGPROF");
@@ -99,29 +102,21 @@ int main(int argc, char * argv[])
 
 	int opt = 0;
 	int shmID = 0;
-	int parentCounter = 0;
 	int status;
-	int actChild = 0;
-	int getNewLaunch = 0;
-	int secLaunch = 0;
 	int terminate = 0;
-	int numChild = 0;
-	//int i = 0;
+	int numChildern = 0;
 	int childLaunch = 0;
-	int noLines = 0;
 	int indexCh = 5;
-
 	int inputArrCount = 1;
 	int index = 0;
 	int i = 0;	
 	
-	double timeInc = 0.0;
-	double nanoLaunch = 0.0;
-	
-	char *duration;
 	char fileInput[100];
-	char *end;
+	char inputArrCountSt[10];
+	char indexChSt[10];
 
+	char launchChild = 'y';
+	
 	pid_t childpid;
 	pid_t testpid;
 
@@ -148,18 +143,11 @@ int main(int argc, char * argv[])
 				break;
 
 			case 'h':
-				printf("Program Defaults:\n-i: input.txt,\n-n: 20 total child processes,\n");
+				printf("Program Defaults:\n-i: input.txt,\n-n: 2 total child processes,\n");
 				return EXIT_SUCCESS;
 		}
 		
 		opt = getopt(argc, argv, optString);
-	}
-
-	// Checking if number of child processes is too large
-	if(args.numChild > 20)
-	{
-		printf("The number of child processes cannot exceed 20");
-		return EXIT_FAILURE;
 	}
 	
 	// Setting up signal handler of CTRL-C
@@ -176,7 +164,6 @@ int main(int argc, char * argv[])
 	pids[0] = -1;
 
 	// Opening input file and error checking
-	
 	if((readptr = fopen(args.inputFileName, "r")) == NULL)
 	{
 		perror("Master: Error");
@@ -201,11 +188,11 @@ int main(int argc, char * argv[])
 
 	fclose(palptr);
 
-/*************************************************************
- *
- * 	              Creating Key 
- *
- *************************************************************/ 	              
+/*************************************************
+ *                                               *
+ *                Creating Key                   *
+ *                                               *
+ ************************************************/ 	              
 
 	key_t key = ftok("main.c", 50);
 	if(key == -1)
@@ -214,11 +201,11 @@ int main(int argc, char * argv[])
 		return EXIT_FAILURE;
 	}
 
-/************************************************************
- *
- * 		Creating shared Memory
- *
- ************************************************************/ 
+/*************************************************
+ *                                               *
+ *            Creating Shared Memory             *
+ *                                               *
+ ************************************************/
 
 	// Get attached memory, creating it if necessary
 	shmID = shmget(key, sizeof(InputHold), 0666 | IPC_CREAT);
@@ -246,72 +233,64 @@ int main(int argc, char * argv[])
 		{
 			return EXIT_FAILURE;
 		}
-		
-		//inputArr -> seconds = 0;
-		
 	}
 
+/*************************************************
+ *                                               *
+ *               Creating Semaphore              *
+ *                                               *
+ ************************************************/
 
 	if(getNamed(SEMNAME, &semlockp, 1) == -1)
 	{
 		perror("Failed to create named semaphore");
 		return EXIT_FAILURE;	
 	}
-/*
-	unsigned int value = 1;
-	sem_t *semlock = sem_open(SEMNAME, FLAGS, PERMS, 1);
-	
-	// Checking for successful creation 
-	if(semlock == SEM_FAILED)
-	{
-		printf("errno: %s\n", strerror(errno));
-		perror("Semaphore creation failed, exiting");
-		return EXIT_FAILURE;	
-	}
-*/
-/*****************************************************************
- *
- * 		Creating Fork and Exec
- *
- *****************************************************************/
-		
-	 // Pulling first line from input file and checking if data exists
+
+/*************************************************
+ *                                               *
+ *        Pulling from Input File                *
+ *                                               *
+ ************************************************/
+
+        // Pulling first line from input file and checking if data exists
 	if(fgets(fileInput, 100, readptr) == NULL)
 	{
 		perror("Master: Error: File contains no contents");
 		return EXIT_FAILURE;
 	}
 	
+	// Copying first line to shared memory
 	strcpy(inputArr -> input[0], fileInput);
 
+	// Pulling rest of lines from input file and copying to shared memory
 	while(fgets(fileInput, 100, readptr) != NULL)
 	{
 		strcpy(inputArr -> input[inputArrCount], fileInput);
 		
 		inputArrCount++;
 	}
-/*
-	printf("%d\n", inputArrCount);
 
-	for(i = 0; i < inputArrCount; i++)
-	{
-		printf("%d\n", i);
-		printf("%s\n", inputArr -> input[i]);
-	}
+/*************************************************
+ *                                               *
+ *    Main Loop to Fork and Exec Childern        *
+ *                                               *
+ ************************************************/
 
-*/
-	int numChildern = 0;
-	char doForLoop = 'y';
 	do
 	{
+		// Checking for kill signal caused by Ctrl-C
 		if(doneflag == 1)
                 {
+			// If no child processes has been created
                 	if(pids[0] == -1)
                         {
                                 fprintf(stderr, "Process terminated by Control C\n");
+
                         	break;
                         }
-
+	
+			// If child processes have been created
                         else
                         {
                                 for(i = 0; i < numChildern; i++)
@@ -320,18 +299,23 @@ int main(int argc, char * argv[])
                                 }
 
                                 fprintf(stderr, "Process terminated by Control C\n");
+
 	                        break;
 	                }
                 }
-
+		
+		// Checking for kill signal caused by going over 2 mins
                 if(overTime == 1)
                 {
+			// If no child processes have been created
                         if(pids[0] == -1)
                         {
                                 fprintf(stderr, "Process terminated because it took longer than 2 mins\n");
+
                                 break;
                         }
 
+			// If child processes have been created
                         else
                         {
                                 for(i = 0; i < numChildern; i++)
@@ -340,228 +324,88 @@ int main(int argc, char * argv[])
                                 }
 
                                 fprintf(stderr, "Process terminated because it took longer than 2 mins\n");
+
                                 break;
                         }
                 }
-		//printf("numchildern: %d, childLaunch: %d < args.numChild: %d, doForLoop: %c\n",numChildern, childLaunch, args.numChild, doForLoop);
 
-		if(numChildern <= 20 && childLaunch < args.numChild && doForLoop != 'n')
+		// Checking if a child process needs to be launched
+		if(numChildern <= 20 && childLaunch < args.numChild && launchChild != 'n')
 		{
-			//for(i = 0; i < args.numChild; i++)
-			//{
+			// Checking if all indexes have been divided up
+			if(inputArrCount <= 0)
+                	{
+				launchChild = 'n';
+                	}
 
+			// Checking if less then 5 indexes need to be sent to child
+                	else if(inputArrCount < 5)
+                	{
+                        	indexCh = inputArrCount;
+                      		inputArrCount -= 5;
+			}
 
-				if(inputArrCount <= 0)
-                		{
-                        		
-					doForLoop = 'n';
-                		}
-
-                		else if(inputArrCount < 5)
-                		{
-                        		indexCh = inputArrCount;
-                      			inputArrCount -= 5;
-					
-                		}
-
-                		else
-                		{
-                	        	inputArrCount -= 5;
-                	        	indexCh = 5;
-					
-        	        	}
+			// Next child will get 5 indexes
+                	else
+                	{
+                	       	inputArrCount -= 5;
+                	       	indexCh = 5;	
+        	        }
 	
-				if(doForLoop != 'n')
-				{
-				char inputArrCountSt[10];
-				char indexChSt[10];
+			// If indexes are still avialable, child process is forked
+			if(launchChild != 'n')
+			{
+				// Casting int values to string values to send through exce
 				sprintf(inputArrCountSt, "%d", index);
 				sprintf(indexChSt, "%d", indexCh);
 		
+				// Forking child
         	        	if((childpid = fork()) == 0)
-	                	{
+	                	{	
+					// Execing child
         	        		execl("./palin", inputArrCountSt, indexChSt, NULL);
-	                       		perror("exec Failed:");
+	                    		perror("exec Failed:");
                         		return EXIT_FAILURE;
                 		}
+				
+				// Saving childpid
+                        	pids[childLaunch] = childpid;
 
-                                        pids[childLaunch] = childpid;
-                                        childLaunch++;
-                                        numChildern++;
-                                        
-                                        
-
-
+                        	childLaunch++;
+                        	numChildern++;
 				index += 5;
-				}
-			//}
+			}	
 		}
-		
 
+		// Checking for terminated child processes
 		testpid = waitpid(-1, &status, WNOHANG);
 		
                 if(testpid > 0)
-                {
-                        
+                {       
                         terminate++;
                         numChildern--;
                 }
-
-		//printf("terminate: %d < childLaunch: %d\n", terminate, childLaunch);
 	}
 	while(terminate < childLaunch);
 
+/*************************************************
+ *                                               *
+ *      Detaching and Destorying Semaphore       *
+ *                                               *
+ ************************************************/
 
-/*******************************************************************
- *
- * 		Main Loop of Program 
- *
- *******************************************************************/
-/*
-	while(terminate < args.numChild)
-	{
-		// Incremening Shared Time 
-		// Checking if nanoseconds are greater than 1 second
-		if((timeInc + sharedSum -> nanoSecs) >= 1000000000.0)
-		{
-			sharedSum -> seconds += 1;
-			sharedSum -> nanoSecs = 0.0;
-		}
-			
-		// If nanoseconds are not greater than one second
-		else
-		{
-			sharedSum -> nanoSecs += timeInc;
-		}
-
-		// Checking for kill signals 
-		if(overTime == 1 || doneflag == 1)
-		{
-			// If no child processes have been created
-			if(pids[0] == -1)
-			{
-				fprintf(writeptr, "Process terminated at %d Seconds, %f nanoseconds", sharedSum -> seconds, sharedSum -> nanoSecs);
-				break;
-			}
-			
-			// If child processes have been created
-			else
-			{
-				for(i = 0; i < args.numChild; i++)
-				{
-					kill(pids[i], SIGKILL);
-				}
-
-				fprintf(writeptr, "Process terminated at %d Seconds, %f nanoseconds", sharedSum -> seconds, sharedSum -> nanoSecs);
-				break;
-
-			}
-		}
-	
-		// Checking to see if anymore childern need to be created
-		if(numChild > 0)
-		{
-			// Checking to see if the number of childern excuting is over the max
-			if(actChild < args.childAtTime && actChild <= 20 && noLines == 0)
-			{
-				// Checking to see if a child needs to be launched
-				if(secLaunch == (sharedSum -> seconds))
-				{	
-					// Checking to see if the shared memory nanoseconds is greater than the child process launch time
-					if(nanoLaunch <=  (sharedSum -> nanoSecs))
-					{ 
-						if((childpid = fork()) == 0)
-						{		
-							execl("./user", duration, NULL);
-							perror("exec Failed:");
-							return EXIT_FAILURE;
-						}	
-						
-						// Outputing the child process creation time
-						fprintf(writeptr, "Child Process: %d    Started at: %d Seconds, %f NanoSeconds\n", childpid, sharedSum -> seconds, sharedSum -> nanoSecs);
-
-						pids[childLaunch] = childpid;
-						childLaunch++; // Number of childern launched
-						getNewLaunch = 1; // Setting flag to get new child information
-						numChild--;  // Decrementing the number of childern that need to be launched
-						actChild++; // Keeping track of active child processes
-					}
-				}
-				
-				// Checking to see if the seconds are not equal
-				else if(secLaunch < sharedSum -> seconds)
-				{
-					if((childpid = fork()) == 0)
-					{
-						execl("./user", duration, NULL);
-						perror("exec Failed:");
-						return EXIT_FAILURE;
-					}
-					
-					// Outputting the child process creation time
- 					fprintf(writeptr, "Child Process: %d    Started at: %d Seconds, %f NanoSeconds\n", childpid, sharedSum -> seconds, sharedSum -> nanoSecs);
-				
-                                        // See commments above
-                                        pids[childLaunch] = childpid;
-                                        childLaunch++;
-                                        getNewLaunch = 1;
-                                        numChild--;
-                                        actChild++;
-
-				}
-				
-				// Getting new information from the input file
-				if(getNewLaunch == 1 && numChild > 0)
-				{
-        				if(fgets(fileInput, 100, readptr) == NULL)
-        				{			
-                				noLines = 1;
-						numChild = 0;
-						args.numChild = childLaunch;
-        				}
-
-              				secLaunch = (int) strtol(fileInput, &end, 10);
-					nanoLaunch = (double) strtod(end, &end);
-					duration = strtok(end, " \n\t");		
-	
-					getNewLaunch = 0; // Resetting flag
-				}
-			}
-		}
-		
-		testpid = waitpid(-1, &status, WNOHANG); // Checking for terminated child process
-		
-		// Outputting terminated child process information
-		if(testpid > 0)
-		{
-			fprintf(writeptr, "Child Process: %d Terminated at: %d Seconds, %f Nanoseconds\n", testpid, sharedSum -> seconds, sharedSum -> nanoSecs);
-			terminate++;
-			actChild--;
-		}
-	}
-*/
-
-
-	// Detaching from the Semaphore
-	//sem_close(semlock);
-
-	// Deleting the Semaphore
-	//sem_unlink(SEMNAME);
-	
-
+  
 	if(destroyNamed(SEMNAME, semlockp) == -1)
 	{
 		perror("Failed to destory named semaphore");
 		return EXIT_FAILURE;
 	}
 
-/*****************************************************************
- *
- * 		Detaching Shared Memory
- *
- *****************************************************************/ 		
-
-//	while((testpid = wait(&status)) > 0);
+/*************************************************
+ *                                               *
+ *           Detaching Shared Memory             *
+ *                                               *
+ *************************************************/
 
 	if(detachAndRemove(shmID, inputArr) == -1)
 	{
@@ -572,7 +416,5 @@ int main(int argc, char * argv[])
 	// Closing file pointers	
 	fclose(readptr);
 
-
-	printf("I made it to the end");
 	return EXIT_SUCCESS;
 }

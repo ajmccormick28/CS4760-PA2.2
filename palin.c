@@ -26,9 +26,17 @@
 #include "optArg.h"
 
 #define PERM (S_IRUSR | S_IWUSR)
+
+// Semaphore constant name
 #define SEMNAME "/Semfile"
 
 static InputHold *inputArr;
+
+/**************************************************
+ *                                                *
+ *            Main Function                       *
+ *                                                *
+ *************************************************/
 
 int main(int argc, char *argv[])
 {
@@ -37,7 +45,8 @@ int main(int argc, char *argv[])
 	int semFlag = 0;
 
 	FILE *palptr;
-
+	
+	// Keeping track of time
 	time_t t;
 	struct tm *timeInfo;
 	time(&t);
@@ -47,13 +56,13 @@ int main(int argc, char *argv[])
 
 	OptArg args;
 
+	// Setting output file names
 	args.palin = "palin.out";
 	args.noPalin = "nopalin.out";
 
 	// Getting index from parent process input
 	int index = atoi(argv[0]);
 	int indexCh = atoi(argv[1]);
-	printf("index: %d\n", index);
 
 	sem_t *semlockp;
 
@@ -94,9 +103,12 @@ int main(int argc, char *argv[])
                 perror("Failed to create named semaphore");
                 return EXIT_FAILURE;
         }
-	
-	// Calling palinCheck to see if the string at index is a semaphore and setting semFlag
-//	semFlag = palinCheck(index);
+
+/**************************************************
+ *                                                *
+ *  Loop to write Index Strings to Output Files   *
+ *                                                *
+ *************************************************/
 
 	for(i = 0; i < indexCh; i++)
 	{
@@ -111,6 +123,7 @@ int main(int argc, char *argv[])
 		timeInfo = localtime(&t);
 		time(&t);
 	
+		// Trying to enter critical section
 		fprintf(stderr, "Child Process #%d trying to enter the critical section to work on index #%d: %s\n", getpid(), index, asctime(timeInfo));
 
 		while(sem_wait(semlockp) == -1)
@@ -129,9 +142,10 @@ int main(int argc, char *argv[])
 		// Calling palinCheck to see if the string at index is a semaphore and setting semFlag
 	        semFlag = palinCheck(index);
 
-
+		// If string is a semaphore
 		if(semFlag == 2)
 		{
+			// Opening output file
 			if((palptr = fopen(args.palin, "a")) == NULL)
 			{
 				printf("error opening output file\n");
@@ -140,11 +154,14 @@ int main(int argc, char *argv[])
 
 			sleep(2);
 
+			// Writing to output file
 			fprintf(palptr, "PID: %d Index: %d String: %s", getpid(), index, inputArr -> input[index]);
 		}
 
+		// If string is not a semaphore
 		else
                 {
+			// Opening output file 
                         if((palptr = fopen(args.noPalin, "a")) == NULL)
                         {
                                 printf("error opening output file\n");
@@ -153,11 +170,13 @@ int main(int argc, char *argv[])
 
                         sleep(2);
 
+			// Writing to output file
                         fprintf(palptr, "PID: %d Index: %d String: %s", getpid(), index, inputArr -> input[index]);
                 }
 
 		sleep(2);
 
+		// Unclocking the semaphore
         	if(sem_post(semlockp) == -1)
         	{
                 	perror("Failed to unlock semlock");
@@ -169,8 +188,10 @@ int main(int argc, char *argv[])
 		index++;
 	}
 
+	// Detach from semaphore
 	sem_close(semlockp);
 
+	// Closing output file
 	fclose(palptr);
 
  	// Detach from shared memory

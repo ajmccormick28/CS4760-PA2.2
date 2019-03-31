@@ -13,6 +13,12 @@
 #define PERMS (mode_t) (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)	
 #define FLAGS (O_CREAT | O_EXCL)
 
+/**************************************************
+ *                                                *
+ *    Creating Name Semaphore or Getting Name     *
+ *                                                *
+ *************************************************/
+
 int getNamed(char *name, sem_t **sem, int val)
 {
 	while(((*sem = sem_open(name, FLAGS, PERMS, val)) == SEM_FAILED) && (errno == EINTR));
@@ -36,6 +42,12 @@ int getNamed(char *name, sem_t **sem, int val)
 
 	return -1;
 }
+
+/**************************************************
+ *                                                *
+ *   Detaching and Destorying Named Semaphore     *
+ *                                                *
+ *************************************************/
 
 int destroyNamed(char *name, sem_t *sem)
 {

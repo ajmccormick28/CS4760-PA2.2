@@ -1,7 +1,7 @@
 // Programmer: Andrew McCormick
 // Function:   detachAndRemove.c
-// Class:      CS-4760 PA2
-// Date:       3/5/2019
+// Class:      CS-4760 PA3
+// Date:       3/21/2019
 
 #include <stdio.h>
 #include <errno.h>

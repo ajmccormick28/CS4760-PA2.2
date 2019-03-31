@@ -9,5 +9,4 @@
 int getNamed(char *name, sem_t **sem, int val);
 int destroyNamed(char *name, sem_t *sem);
 
-
 #endif

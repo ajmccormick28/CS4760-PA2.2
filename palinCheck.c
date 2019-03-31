@@ -30,6 +30,7 @@ int palinCheck(int index)
 	int stringLen = 0;
 	int i = 0;
 	int shmID;
+
         // Getting Key
 	key_t key = ftok("main.c", 50);
 
@@ -59,35 +60,36 @@ int palinCheck(int index)
                 }
 
         }
-	
+
+	// Getting the string lenth minus the NULL character	
         stringLen = strlen(inputArr -> input[index]) - 1;
 
+	// Checking if the length is positive
 	if((stringLen % 2) == 0)
         {
-                
+		// Indexing through each half of the string
 		for(i = 0; i < (stringLen / 2); i++)
                 {
-			
+			// Checking to see if characters are mismatched
 			if(inputArr -> input[index][i] != inputArr -> input[index][stringLen - 1 - i])
                         {
 				shmdt(inputArr);
-                                return 1;
-				
+                                return 1; // Returning 1 if not a palindrome
                         }
-			printf("I'm through\n");
                 }
-
         }
 	
+	// Length is negative
         else
         {
-		printf("I'm negative\n");
+		// Indexing through each half of the string 
                 for(i = 0; i < ((stringLen - 1) / 2); i++)
                 {
+			// Checking to see if characters are mismatched
                         if(inputArr -> input[index][i] != inputArr -> input[index][stringLen - 1 - i])
                         {
                                 shmdt(inputArr);
-				return 1;	
+				return 1; // Returning 1 if not a palindrome
                         }
                 }
         }
@@ -95,7 +97,5 @@ int palinCheck(int index)
         // Detach from shared memory
 	shmdt(inputArr);
 	                 
-	return 2;
- 
-
+	return 2; // Returning 2 if a palindrome
 }
