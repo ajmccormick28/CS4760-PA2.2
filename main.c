@@ -1,7 +1,7 @@
-// Programmer: Andrew McCormick 
+// Programmer: Andrew McCormick
 // Function:   main.c
-// Class:      CS-4760 PA 3
-// Date:       3/21/2019
+// Class:      CS-4760 PA 4
+// Date:       4/11/2019
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,183 +23,106 @@
 #include "inputHold.h"
 #include "detachAndRemove.h"
 #include "getNamed.h"
+#include "controlBlock.h"
+#include "sharedTime.h"
 
 #define PERM (S_IRUSR | S_IWUSR)
-#define SEMNAME "/Semfile" 
+#define BLOCKS 18
 
-static InputHold *inputArr;
-static const char *optString = "hi:n:";
+static SharedTime *sharedSum;
+static const char *optString = "ho:i:n:s:";
 static volatile sig_atomic_t doneflag = 0;
 
-/**************************************************
- *                                                *
- * 		Siginal Code                      *
- *                                                *
- *************************************************/ 		
+/*
+  **************************************************
+  *                                                *
+  *                 Main Code                      *
+  *                                                *
+  **************************************************
+*/
 
-int overTime = 0;
+int main(int argc, char * argv[]) {
+    /*   if(setupinterrupt() == -1)
+       {
+           perror("Failed to set up handler for SIGPROF");
+           return EXIT_FAILURE;
+       }
 
-// ARGSUSED
+       if(setupitimer() == -1)
+       {
+           perror("Failed to set up the ITIMER_PROF interval timer");
+           return EXIT_FAILURE;
+       }
+   */
+//    FILE *readptr;
+//    FILE *palptr;
 
-static void setdoneflag(int signo)
-{
-	doneflag = 1;
-}
+    int opt = 0;
+    int shmTimeID = 0;
+    int shmBlockID = 0;
+    int status;
+    int terminate = 0;
+    int numChildern = 0;
+    int childLaunch = 0;
+    int indexCh = 5;
+    int inputArrCount = 1;
+    int index = 0;
+    int i = 0;
+    int size = sizeof(SharedTime) + sizeof(ControlBlock) * BLOCKS;
 
-static void myhandler(int s) 
-{
-	char aster = '*';
-	struct sigaction act;
-	int errsave;
-	errsave = errno;
-	overTime = 1;
-	errno = errsave;
-}
+    char fileInput[100];
+    char inputArrCountSt[10];
+    char indexChSt[10];
 
-// Set up myhandler for SIGPROF
+    char launchChild = 'y';
 
-static int setupinterrupt(void)
-{
-	struct sigaction act;
-	act.sa_handler = myhandler;
-	act.sa_flags = 0;
-	return (sigemptyset(&act.sa_mask) || sigaction(SIGPROF, &act, NULL));
-}
+//    pid_t childpid;
+//    pid_t testpid;
 
-// Set ITIMER_PROF for 2-minute interval
+   // struct sigaction act;
 
-static int setupitimer(void)
-{
-	struct itimerval value;
-	value.it_interval.tv_sec = 120;
-	value.it_interval.tv_usec = 0;
-	value.it_value = value.it_interval;
-	return (setitimer(ITIMER_PROF, &value, NULL));
-}
+    //sem_t *semlockp;
 
-/**************************************************
- *                                                *
- *                 Main Code                      *
- *                                                *
- *************************************************/
+    sharedSum->nanoSecs = 0;
+    sharedSum->seconds = 0;
 
-int main(int argc, char * argv[])
-{
-	if(setupinterrupt() == -1)
-	{
-		perror("Failed to set up handler for SIGPROF");
-		return EXIT_FAILURE;
-	}
+    OptArg args = {"input.txt", "palin.out", "nopalin.out", 2};
 
-	if(setupitimer() == -1)
-	{
-		perror("Failed to set up the ITIMER_PROF interval timer");
-		return EXIT_FAILURE;
-	}
+    opt = getopt(argc, argv, optString);
 
-	FILE *readptr;
-	FILE *palptr;
+    while (opt != -1) {
+        switch (opt) {
+            // for option -i inputFileName
+            case 'i':
+                args.inputFileName = optarg;
+                break;
 
-	int opt = 0;
-	int shmID = 0;
-	int status;
-	int terminate = 0;
-	int numChildern = 0;
-	int childLaunch = 0;
-	int indexCh = 5;
-	int inputArrCount = 1;
-	int index = 0;
-	int i = 0;	
-	
-	char fileInput[100];
-	char inputArrCountSt[10];
-	char indexChSt[10];
+                // for option -s number of childern running at a time
+            case 'n':
+                args.numChild = atoi(optarg);
+                break;
 
-	char launchChild = 'y';
-	
-	pid_t childpid;
-	pid_t testpid;
-
-	struct sigaction act;
-
-	sem_t *semlockp;
-
-	OptArg args = {"input.txt", "palin.out", "nopalin.out", 2};
-
-	opt = getopt(argc, argv, optString);
-
-	while(opt != -1)
-	{
-		switch(opt)
-		{
-			// for option -i inputFileName
-			case 'i':
-				args.inputFileName = optarg;
-				break;
-					
-			// for option -s number of childern running at a time
-			case 'n':
-				args.numChild = atoi(optarg);
-				break;
-
-			case 'h':
-				printf("Program Defaults:\n-i: input.txt,\n-n: 2 total child processes,\n");
-				return EXIT_SUCCESS;
-		}
-		
-		opt = getopt(argc, argv, optString);
-	}
-	
-	// Setting up signal handler of CTRL-C
-	act.sa_handler = setdoneflag;
-	act.sa_flags = 0;
-	if((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1))
-	{
-		perror("Failed to set SIGINT handler");
-		return EXIT_FAILURE;
-	}
-	
-	// Intalizing array to hold child pids incasee of termination
-	int pids[args.numChild];
-	pids[0] = -1;
-
-	// Opening input file and error checking
-	if((readptr = fopen(args.inputFileName, "r")) == NULL)
-	{
-		perror("Master: Error");
-		return EXIT_FAILURE;
-	}
-
-	// Opening both output files to clear or create them
-	
-	if((palptr = fopen(args.palin, "w")) == NULL)
-        {
-                perror("Master: Error");
-                return EXIT_FAILURE;
+            case 'h':
+                printf("Program Defaults:\n-i: input.txt,\n-n: 2 total child processes,\n");
+                return EXIT_SUCCESS;
         }
 
-	fclose(palptr);
+        opt = getopt(argc, argv, optString);
+    }
 
-	if((palptr = fopen(args.noPalin, "w")) == NULL)
-        {
-                perror("Master: Error");
-                return EXIT_FAILURE;
-        }
+/*
+  **************************************************
+  *                                                *
+  *                Creating Key                    *
+  *                                                *
+  **************************************************
+*/
 
-	fclose(palptr);
-
-/*************************************************
- *                                               *
- *                Creating Key                   *
- *                                               *
- ************************************************/ 	              
-
-	key_t key = ftok("main.c", 50);
-	if(key == -1)
-	{
-		perror("Failed to derive key:");
-		return EXIT_FAILURE;
-	}
+    key_t keyTime = ftok("main.c", 50);
+    if (keyTime == -1) {
+        perror("Failed to derive key:");
+        return EXIT_FAILURE;
+    }
 
 /*************************************************
  *                                               *
@@ -207,199 +130,50 @@ int main(int argc, char * argv[])
  *                                               *
  ************************************************/
 
-	// Get attached memory, creating it if necessary
-	shmID = shmget(key, sizeof(InputHold), 0666 | IPC_CREAT);
-	
-	if((shmID == -1) && (errno != EEXIST))
-	{
-		return EXIT_FAILURE;
-	}
+    // Get attached memory, creating it if necessary
+    shmTimeID = shmget(keyTime, size, 0666 | IPC_CREAT);
 
-	// Already created, access and attach it
-	if(shmID == -1)
-	{
-		if(((shmID = shmget(key, sizeof(InputHold), PERM)) == -1) || ((inputArr = (InputHold *)shmat(shmID, NULL, 0)) == (void *)-1))
-		{
-			return EXIT_FAILURE;
-		}
-	}
+    if ((shmTimeID == -1) && (errno != EEXIST))
+    {
+        return EXIT_FAILURE;
+    }
 
-	// Successfully Created, must attach and initialize variables		
-	else
-	{
-		inputArr = (InputHold *)shmat(shmID, NULL, 0);
-		
-		if(inputArr == (void *)-1)
-		{
-			return EXIT_FAILURE;
-		}
-	}
+    // Already created, access and attach it
+    if (shmTimeID == -1)
+    {
+        if (((shmTimeID = shmget(keyTime, size, PERM)) == -1) || ((sharedSum = (SharedTime *) shmat(shmTimeID, NULL, 0)) == (void *) -1))
+        {
+            return EXIT_FAILURE;
+        }
+    }
 
-/*************************************************
- *                                               *
- *               Creating Semaphore              *
- *                                               *
- ************************************************/
+    // Successfully Created, must attach and initialize variables
+    else
+    {
+        sharedSum = (SharedTime *) shmat(shmTimeID, NULL, 0);
 
-	if(getNamed(SEMNAME, &semlockp, 1) == -1)
-	{
-		perror("Failed to create named semaphore");
-		return EXIT_FAILURE;	
-	}
+        if (sharedSum == (void *) -1)
+        {
+            return EXIT_FAILURE;
+        }
+    }
 
-/*************************************************
- *                                               *
- *        Pulling from Input File                *
- *                                               *
- ************************************************/
+    for(i = 0; i < BLOCKS; i++)
+    {
+        sharedSum->block[i].a = i;
+    }
 
-        // Pulling first line from input file and checking if data exists
-	if(fgets(fileInput, 100, readptr) == NULL)
-	{
-		perror("Master: Error: File contains no contents");
-		return EXIT_FAILURE;
-	}
-	
-	// Copying first line to shared memory
-	strcpy(inputArr -> input[0], fileInput);
+    if((childpid = fork()) == 0)
+    {
+        // Execing child
+        execl("./child", "9", NULL);
+        perror("exec Failed:");
+        return EXIT_FAILURE;
+    }
 
-	// Pulling rest of lines from input file and copying to shared memory
-	while(fgets(fileInput, 100, readptr) != NULL)
-	{
-		strcpy(inputArr -> input[inputArrCount], fileInput);
-		
-		inputArrCount++;
-	}
 
-/*************************************************
- *                                               *
- *    Main Loop to Fork and Exec Childern        *
- *                                               *
- ************************************************/
+    childpid = wait(&status);
 
-	do
-	{
-		// Checking for kill signal caused by Ctrl-C
-		if(doneflag == 1)
-                {
-			// If no child processes has been created
-                	if(pids[0] == -1)
-                        {
-                                fprintf(stderr, "Process terminated by Control C\n");
-
-                        	break;
-                        }
-	
-			// If child processes have been created
-                        else
-                        {
-                                for(i = 0; i < numChildern; i++)
-                                {
-                                	kill(pids[i], SIGKILL);
-                                }
-
-                                fprintf(stderr, "Process terminated by Control C\n");
-
-	                        break;
-	                }
-                }
-		
-		// Checking for kill signal caused by going over 2 mins
-                if(overTime == 1)
-                {
-			// If no child processes have been created
-                        if(pids[0] == -1)
-                        {
-                                fprintf(stderr, "Process terminated because it took longer than 2 mins\n");
-
-                                break;
-                        }
-
-			// If child processes have been created
-                        else
-                        {
-                                for(i = 0; i < numChildern; i++)
-                                {
-                                        kill(pids[i], SIGKILL);
-                                }
-
-                                fprintf(stderr, "Process terminated because it took longer than 2 mins\n");
-
-                                break;
-                        }
-                }
-
-		// Checking if a child process needs to be launched
-		if(numChildern <= 20 && childLaunch < args.numChild && launchChild != 'n')
-		{
-			// Checking if all indexes have been divided up
-			if(inputArrCount <= 0)
-                	{
-				launchChild = 'n';
-                	}
-
-			// Checking if less then 5 indexes need to be sent to child
-                	else if(inputArrCount < 5)
-                	{
-                        	indexCh = inputArrCount;
-                      		inputArrCount -= 5;
-			}
-
-			// Next child will get 5 indexes
-                	else
-                	{
-                	       	inputArrCount -= 5;
-                	       	indexCh = 5;	
-        	        }
-	
-			// If indexes are still avialable, child process is forked
-			if(launchChild != 'n')
-			{
-				// Casting int values to string values to send through exce
-				sprintf(inputArrCountSt, "%d", index);
-				sprintf(indexChSt, "%d", indexCh);
-		
-				// Forking child
-        	        	if((childpid = fork()) == 0)
-	                	{	
-					// Execing child
-        	        		execl("./palin", inputArrCountSt, indexChSt, NULL);
-	                    		perror("exec Failed:");
-                        		return EXIT_FAILURE;
-                		}
-				
-				// Saving childpid
-                        	pids[childLaunch] = childpid;
-
-                        	childLaunch++;
-                        	numChildern++;
-				index += 5;
-			}	
-		}
-
-		// Checking for terminated child processes
-		testpid = waitpid(-1, &status, WNOHANG);
-		
-                if(testpid > 0)
-                {       
-                        terminate++;
-                        numChildern--;
-                }
-	}
-	while(terminate < childLaunch);
-
-/*************************************************
- *                                               *
- *      Detaching and Destorying Semaphore       *
- *                                               *
- ************************************************/
-
-  
-	if(destroyNamed(SEMNAME, semlockp) == -1)
-	{
-		perror("Failed to destory named semaphore");
-		return EXIT_FAILURE;
-	}
 
 /*************************************************
  *                                               *
@@ -407,14 +181,12 @@ int main(int argc, char * argv[])
  *                                               *
  *************************************************/
 
-	if(detachAndRemove(shmID, inputArr) == -1)
-	{
-		perror("Failed to destory shared memory segment");
-		return EXIT_FAILURE;
-	}
-	
-	// Closing file pointers	
-	fclose(readptr);
+    if(detachAndRemove(shmTimeID, sharedSum) == -1)
+    {
+        perror("Failed to destroy shared memory segment");
+        return EXIT_FAILURE;
+    }
 
-	return EXIT_SUCCESS;
-}
+    return EXIT_SUCCESS;
+
+ }

@@ -2,39 +2,37 @@
 
 CC = gcc
 CFLAGS = -g
-TARGET = master
-TARGET2 = palin
+TARGET = oss
+TARGET2 = child
 LIBS = 
-SRC = main.c palin.c detachAndRemove.c getNamed.c palinCheck.c
-OBJFILEREAD = main.o detachAndRemove.o getNamed.o
-OBJCHILD = palin.o getNamed.o palinCheck.o
+SRC = main.c detachAndRemove.c childPro.c
+OBJOSS = main.o detachAndRemove.o
+OBJCHILD = childPro.o
 
 #explicit rule
 
 all: $(TARGET) $(TARGET2)
 
-$(TARGET): $(OBJFILEREAD)
-	$(CC) -pthread -o $(TARGET) $(OBJFILEREAD)
+$(TARGET): $(OBJOSS)
+	$(CC) -pthread -o $(TARGET) $(OBJOSS)
 
 $(TARGET2): $(OBJCHILD)
 	$(CC) -pthread -o $(TARGET2) $(OBJCHILD)
 
 #implicit rules 
 
-main.o: main.c optArg.h inputHold.h detachAndRemove.h getNamed.h
+main.o: main.c optArg.h detachAndRemove.h sharedTime.h controlBlock.h
 	$(CC) -c $(CFLAGS) main.c
 
-user.o: palin.c inputHold.h getNamed.h palinCheck.h
-	$(CC) -c $(CFLAGS) user.c
+childPro.o: childPro.c sharedTime.h
+	$(CC) -c $(CFLAGS) childPro.c
 
 detachAndRemove.o: detachAndRemove.c detachAndRemove.h
 	$(CC) -c $(CFLAGS) detachAndRemove.c
 
-getNamed.o: getNamed.c getNamed.h
-	$(CC) -c $(CFLAGS) getNamed.c
 
-palinCheck.o: palinCheck.c palinCheck.h
-	$(CC) -c $(CFLAGS) palinCheck.c
+
+
 
 #cleaning up
 
