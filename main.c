@@ -24,14 +24,17 @@
 #include "detachAndRemove.h"
 #include "getNamed.h"
 #include "controlBlock.h"
-#include "sharedTime.h"
+#include "sharedMemory.h"
 
 #define PERM (S_IRUSR | S_IWUSR)
 #define BLOCKS 18
 
-static SharedTime *sharedSum;
+static SharedMemory *sharedMem;
 static const char *optString = "ho:i:n:s:";
 static volatile sig_atomic_t doneflag = 0;
+
+const int maxTimeBetweenNewProcsNS = 1000;
+const int maxTimeBetweenNewProcsSecs = 2;
 
 /*
   **************************************************
@@ -57,9 +60,9 @@ int main(int argc, char * argv[]) {
 //    FILE *readptr;
 //    FILE *palptr;
 
+    int launch = 0;
     int opt = 0;
-    int shmTimeID = 0;
-    int shmBlockID = 0;
+    int shmID = 0;
     int status;
     int terminate = 0;
     int numChildern = 0;
@@ -68,23 +71,26 @@ int main(int argc, char * argv[]) {
     int inputArrCount = 1;
     int index = 0;
     int i = 0;
-    int size = sizeof(SharedTime) + sizeof(ControlBlock) * BLOCKS;
-
+    int size = sizeof(SharedMemory) + sizeof(ControlBlock) * BLOCKS;
+    int timeInc = 20000;
+    int nextLaunchSecs = 0;
+    int nextLaunchNS = 0;
     char fileInput[100];
     char inputArrCountSt[10];
     char indexChSt[10];
 
+    char simPidSt[10];
+
     char launchChild = 'y';
 
-//    pid_t childpid;
+    pid_t childpid;
 //    pid_t testpid;
 
    // struct sigaction act;
 
     //sem_t *semlockp;
 
-    sharedSum->nanoSecs = 0;
-    sharedSum->seconds = 0;
+
 
     OptArg args = {"input.txt", "palin.out", "nopalin.out", 2};
 
@@ -118,8 +124,8 @@ int main(int argc, char * argv[]) {
   **************************************************
 */
 
-    key_t keyTime = ftok("main.c", 50);
-    if (keyTime == -1) {
+    key_t key = ftok("main.c", 50);
+    if (key == -1) {
         perror("Failed to derive key:");
         return EXIT_FAILURE;
     }
@@ -131,17 +137,17 @@ int main(int argc, char * argv[]) {
  ************************************************/
 
     // Get attached memory, creating it if necessary
-    shmTimeID = shmget(keyTime, size, 0666 | IPC_CREAT);
+    shmID = shmget(key, size, 0666 | IPC_CREAT);
 
-    if ((shmTimeID == -1) && (errno != EEXIST))
+    if ((shmID == -1) && (errno != EEXIST))
     {
         return EXIT_FAILURE;
     }
 
     // Already created, access and attach it
-    if (shmTimeID == -1)
+    if (shmID == -1)
     {
-        if (((shmTimeID = shmget(keyTime, size, PERM)) == -1) || ((sharedSum = (SharedTime *) shmat(shmTimeID, NULL, 0)) == (void *) -1))
+        if (((shmID = shmget(key, size, PERM)) == -1) || ((sharedMem = (SharedMemory *) shmat(shmID, NULL, 0)) == (void *) -1))
         {
             return EXIT_FAILURE;
         }
@@ -150,19 +156,65 @@ int main(int argc, char * argv[]) {
     // Successfully Created, must attach and initialize variables
     else
     {
-        sharedSum = (SharedTime *) shmat(shmTimeID, NULL, 0);
+        sharedMem = (SharedMemory *) shmat(shmID, NULL, 0);
 
-        if (sharedSum == (void *) -1)
+        if (sharedMem == (void *) -1)
         {
             return EXIT_FAILURE;
         }
+
+        sharedMem->nanoSecs = 0;
+        sharedMem->seconds = 0;
     }
 
-    for(i = 0; i < BLOCKS; i++)
+
+    i = 0;
+
+    do
     {
-        sharedSum->block[i].a = i;
-    }
+        // Incremening Shared Time
+        // Checking if nanoseconds are greater than 1 second
+        if((timeInc + sharedMem -> nanoSecs) >= 1000000000)
+        {
+            sharedMem -> seconds += 1;
+            sharedMem -> nanoSecs = 0;
+        }
 
+            // If nanoseconds are not greater than one second
+        else
+        {
+            sharedMem -> nanoSecs += timeInc;
+        }
+
+
+        if(launch == 1)
+        {
+            nextLaunchNS = rand() % maxTimeBetweenNewProcsNS + 1;
+            nextLaunchSecs = rand() % maxTimeBetweenNewProcsSecs + 1;
+        }
+
+        printf("NS: %d Secs: %d\n", nextLaunchNS, nextLaunchSecs);
+        sharedMem -> controlTable[i].simPid = i;
+
+        sprintf(simPidSt, "%d", i);
+        if((childpid = fork()) == 0)
+        {
+            // Execing child
+            execl("./child", simPidSt, NULL);
+            perror("exec Failed:");
+            return EXIT_FAILURE;
+        }
+
+        launch = 1;
+        childpid = wait(&status);
+
+        i++;
+    }
+    while(i < 2);
+
+
+
+/*
     if((childpid = fork()) == 0)
     {
         // Execing child
@@ -173,7 +225,7 @@ int main(int argc, char * argv[]) {
 
 
     childpid = wait(&status);
-
+*/
 
 /*************************************************
  *                                               *
@@ -181,7 +233,7 @@ int main(int argc, char * argv[]) {
  *                                               *
  *************************************************/
 
-    if(detachAndRemove(shmTimeID, sharedSum) == -1)
+    if(detachAndRemove(shmID, sharedMem) == -1)
     {
         perror("Failed to destroy shared memory segment");
         return EXIT_FAILURE;
