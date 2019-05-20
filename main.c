@@ -19,6 +19,7 @@
 #include <semaphore.h>
 #include <pthread.h>
 #include <sys/file.h>
+#include <sys/msg.h>
 #include "optArg.h"
 #include "inputHold.h"
 #include "detachAndRemove.h"
@@ -33,8 +34,10 @@ static SharedMemory *sharedMem;
 static const char *optString = "ho:i:n:s:";
 static volatile sig_atomic_t doneflag = 0;
 
-const int maxTimeBetweenNewProcsNS = 1000;
-const int maxTimeBetweenNewProcsSecs = 2;
+const int maxTimeBetweenNewProcsNS = 500000;
+const int maxTimeBetweenNewProcsSecs = 1;
+
+void setupMsgQueue();
 
 /*
   **************************************************
@@ -60,7 +63,8 @@ int main(int argc, char * argv[]) {
 //    FILE *readptr;
 //    FILE *palptr;
 
-    int launch = 0;
+    int launchTime  = 1;
+
     int opt = 0;
     int shmID = 0;
     int status;
@@ -84,7 +88,7 @@ int main(int argc, char * argv[]) {
     char launchChild = 'y';
 
     pid_t childpid;
-//    pid_t testpid;
+    pid_t testpid;
 
    // struct sigaction act;
 
@@ -186,46 +190,62 @@ int main(int argc, char * argv[]) {
             sharedMem -> nanoSecs += timeInc;
         }
 
+        nextLaunchNS -= timeInc;
 
-        if(launch == 1)
+        if(nextLaunchNS <= 0)
+        {
+            nextLaunchSecs -= 1;
+            nextLaunchNS += 1000000000;
+        }
+
+        //printf("NextLaunchNS: %d NextLaunchSecs: %d\n", nextLaunchSecs, nextLaunchNS);
+
+        if(nextLaunchSecs <= -1 && launchTime  == 0)
+        {
+            //printf("NS: %d Secs: %d\n", nextLaunchNS, nextLaunchSecs);
+            sharedMem -> controlTable[i].simPid = i;
+
+            sprintf(simPidSt, "%d", i);
+            if((childpid = fork()) == 0)
+            {
+                // Execing child
+                execl("./child", simPidSt, NULL);
+                perror("exec Failed:");
+                return EXIT_FAILURE;
+            }
+
+            launchTime  = 1;
+        }
+
+        if(launchTime == 1)
         {
             nextLaunchNS = rand() % maxTimeBetweenNewProcsNS + 1;
+            // Need to fix so it varies more
             nextLaunchSecs = rand() % maxTimeBetweenNewProcsSecs + 1;
+            launchTime  = 0;
+
+            //printf("NextLaunchNS: %d NextLaunchSecs: %d\n", nextLaunchSecs, nextLaunchNS);
         }
 
-        printf("NS: %d Secs: %d\n", nextLaunchNS, nextLaunchSecs);
-        sharedMem -> controlTable[i].simPid = i;
+        //childpid = wait(&status);
 
-        sprintf(simPidSt, "%d", i);
-        if((childpid = fork()) == 0)
+        // Checking for terminated child processes
+        testpid = waitpid(-1, &status, WNOHANG);
+
+        if(testpid > 0)
         {
-            // Execing child
-            execl("./child", simPidSt, NULL);
-            perror("exec Failed:");
-            return EXIT_FAILURE;
+            i++;
+           // terminate++;
+           // numChildern--;
         }
 
-        launch = 1;
-        childpid = wait(&status);
 
-        i++;
+        //i++;
     }
     while(i < 2);
 
 
 
-/*
-    if((childpid = fork()) == 0)
-    {
-        // Execing child
-        execl("./child", "9", NULL);
-        perror("exec Failed:");
-        return EXIT_FAILURE;
-    }
-
-
-    childpid = wait(&status);
-*/
 
 /*************************************************
  *                                               *
