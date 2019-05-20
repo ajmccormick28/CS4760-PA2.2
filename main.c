@@ -26,11 +26,18 @@
 #include "getNamed.h"
 #include "controlBlock.h"
 #include "sharedMemory.h"
+#include "setUpQueues.h"
 
 #define PERM (S_IRUSR | S_IWUSR)
 #define BLOCKS 18
 
 static SharedMemory *sharedMem;
+
+static Queues *roundRobin;
+static Queues *highPriority;
+static Queues *medPriority;
+static Queues *lowPriority;
+
 static const char *optString = "ho:i:n:s:";
 static volatile sig_atomic_t doneflag = 0;
 
@@ -93,8 +100,17 @@ int main(int argc, char * argv[]) {
    // struct sigaction act;
 
     //sem_t *semlockp;
-
-
+/*
+    Queues *roundRobin;
+    Queues *highPriority;
+    Queues *medPriority;
+    Queues *lowPriority;
+*/
+    // initializing the Queues by call function initializeQueue in setUpQueues.c
+    roundRobin = initializeQueue(roundRobin);
+    highPriority = initializeQueue(highPriority);
+    medPriority = initializeQueue(medPriority);
+    lowPriority = initializeQueue(lowPriority);
 
     OptArg args = {"input.txt", "palin.out", "nopalin.out", 2};
 
@@ -171,6 +187,8 @@ int main(int argc, char * argv[]) {
         sharedMem->seconds = 0;
     }
 
+
+    //initializeQueue(
 
     i = 0;
 
